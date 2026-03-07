@@ -1,15 +1,18 @@
+#version 460 core
 #include <flutter/runtime_effect.glsl>
-
-precision mediump float;
 
 // ---------------------------------------------------------------------------
 // Uniforms — float indices [0..25], sampler index [0]
-// All floats must be set via shader.setFloat() in index order.
-// u_backdrop is provided automatically by ImageFilter.shader.
+//
+// When used via ImageFilter.shader (BackdropFilter), the engine auto-sets:
+//   float indices 0, 1 → backdrop texture width/height
+//   sampler index 0    → captured backdrop content
+// Do NOT call shader.setFloat(0, ...) or setFloat(1, ...) from Dart.
+// Custom uniforms start at float index 2.
 // ---------------------------------------------------------------------------
 
-uniform float u_width;               // 0: element width in pixels
-uniform float u_height;              // 1: element height in pixels
+uniform float u_width;               // 0: auto-set by engine (backdrop width)
+uniform float u_height;              // 1: auto-set by engine (backdrop height)
 uniform float u_blur_sigma;          // 2: blur radius
 uniform float u_refractive_index;    // 3: glass refractive index
 uniform float u_refract_strength;    // 4: refraction UV offset magnitude

@@ -77,7 +77,7 @@ class GlassFallbackPainter extends CustomPainter {
 Future<FragmentShader?> loadLightweightShader() async {
   try {
     final program =
-        await FragmentProgram.fromAsset('shaders/lightweight_glass.frag');
+        await FragmentProgram.fromAsset('packages/liquid_glass/shaders/lightweight_glass.frag');
     return program.fragmentShader();
   } catch (_) {
     return null;

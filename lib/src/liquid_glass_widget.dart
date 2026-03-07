@@ -15,9 +15,11 @@ import 'liquid_glass_variant.dart';
 
 // Uniform index constants matching the shader's float declaration order.
 // See shaders/liquid_glass.frag for the authoritative ordering.
+// Indices 0 and 1 (u_width, u_height) are auto-set by the engine when used
+// via ImageFilter.shader — do NOT call setFloat for them from Dart.
 class _Uniforms {
-  static const int width = 0;
-  static const int height = 1;
+  // 0: u_width  — auto-set by engine
+  // 1: u_height — auto-set by engine
   static const int blurSigma = 2;
   static const int refractiveIndex = 3;
   static const int refractStrength = 4;
@@ -134,7 +136,8 @@ class _LiquidGlassState extends State<LiquidGlass> {
       return;
     }
 
-    FragmentProgram.fromAsset('shaders/liquid_glass.frag').then((program) {
+    FragmentProgram.fromAsset('packages/liquid_glass/shaders/liquid_glass.frag')
+        .then((program) {
       if (_disposed) return;
       final shader = program.fragmentShader();
       // Detect Impeller capability once, by attempting to create an
@@ -157,9 +160,11 @@ class _LiquidGlassState extends State<LiquidGlass> {
         _reportFallbackOnce();
         _loadFallbackShader();
       }
-    }).catchError((_) {
-      // Shader loading failed (e.g., missing asset in test env).
-      // Widget gracefully degrades to showing the child.
+    }).catchError((error) {
+      // Shader loading failed — widget degrades to showing the child.
+      if (kDebugMode) {
+        debugPrint('LiquidGlass: shader load failed: $error');
+      }
     });
   }
 
@@ -271,12 +276,12 @@ class _LiquidGlassState extends State<LiquidGlass> {
     return settings;
   }
 
-  void _setUniforms(FragmentShader shader, double width, double height,
-      LiquidGlassSettings s, double mergeDistanceValue) {
+  void _setUniforms(FragmentShader shader, LiquidGlassSettings s,
+      double mergeDistanceValue) {
     final tint = s.tint;
 
-    shader.setFloat(_Uniforms.width, width);
-    shader.setFloat(_Uniforms.height, height);
+    // Indices 0, 1 (u_width, u_height) are auto-set by the engine via
+    // ImageFilter.shader — do not set them from Dart.
     shader.setFloat(_Uniforms.blurSigma, s.blurSigma);
     shader.setFloat(_Uniforms.refractiveIndex, s.refractiveIndex);
     shader.setFloat(_Uniforms.refractStrength, s.refractionStrength);
@@ -432,39 +437,26 @@ class _LiquidGlassState extends State<LiquidGlass> {
     // mode: tier1 — force the shader path regardless of backend capability.
     if (effectiveMode == LiquidGlassMode.tier1 || _supportsShader == true) {
       // Tier 1: Impeller path — full shader-based glass effect.
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth.isInfinite
-              ? MediaQuery.sizeOf(context).width
-              : constraints.maxWidth;
-          final height = constraints.maxHeight.isInfinite
-              ? MediaQuery.sizeOf(context).height
-              : constraints.maxHeight;
+      _setUniforms(_shader!, effectiveSettings, mergeDistance);
 
-          _setUniforms(_shader!, width, height, effectiveSettings, mergeDistance);
+      ImageFilter filter;
+      try {
+        filter = ImageFilter.shader(_shader!);
+      } on UnsupportedError {
+        _supportsShader = false;
+        final clampedSigma = min(effectiveSettings.blurSigma, 20.0);
+        filter = ImageFilter.blur(
+          sigmaX: clampedSigma,
+          sigmaY: clampedSigma,
+        );
+      }
 
-          ImageFilter filter;
-          try {
-            filter = ImageFilter.shader(_shader!);
-          } on UnsupportedError {
-            _supportsShader = false;
-            // Half-sigma blur at full resolution approximates full-sigma at
-            // half resolution, avoiding artifacts above sigma 25 (docs/05 §5.2).
-            final clampedSigma = min(effectiveSettings.blurSigma, 20.0);
-            filter = ImageFilter.blur(
-              sigmaX: clampedSigma,
-              sigmaY: clampedSigma,
-            );
-          }
-
-          return ClipRRect(
-            borderRadius: borderRadius,
-            child: BackdropFilter(
-              filter: filter,
-              child: widget.child,
-            ),
-          );
-        },
+      return ClipRRect(
+        borderRadius: borderRadius,
+        child: BackdropFilter(
+          filter: filter,
+          child: widget.child,
+        ),
       );
     } else {
       // Tier 2: fallback blur + specular chrome for Skia / web / old Android.
