@@ -31,7 +31,8 @@ class LiquidGlassSettings {
         lightBandWidth = 30.0,
         lightBandStrength = 0.4,
         grainIntensity = 0.0,
-        isInteractive = false;
+        isInteractive = false,
+        zFlatness = 3.0;
 
   const LiquidGlassSettings({
     this.variant = LiquidGlassVariant.regular,
@@ -53,6 +54,7 @@ class LiquidGlassSettings {
     this.lightBandStrength = 0.6,
     this.grainIntensity = 0.04,
     this.isInteractive = false,
+    this.zFlatness = 2.0,
   });
 
   /// The visual variant of the glass effect.
@@ -161,6 +163,11 @@ class LiquidGlassSettings {
   /// spring-back scale animation and a shimmer sweep.
   final bool isInteractive;
 
+  /// Perceived glass surface curvature. Controls how "curved" the glass appears.
+  /// Lower values (0.5) = dramatic curvature, higher values (4.0) = mostly flat.
+  /// GLSL uniform: [u_z_flatness]. Valid range: 0.5-4.0.
+  final double zFlatness;
+
   /// Returns a copy of this settings object with the specified fields replaced.
   LiquidGlassSettings copyWith({
     LiquidGlassVariant? variant,
@@ -183,6 +190,7 @@ class LiquidGlassSettings {
     double? lightBandStrength,
     double? grainIntensity,
     bool? isInteractive,
+    double? zFlatness,
   }) {
     return LiquidGlassSettings(
       variant: variant ?? this.variant,
@@ -206,6 +214,7 @@ class LiquidGlassSettings {
       lightBandStrength: lightBandStrength ?? this.lightBandStrength,
       grainIntensity: grainIntensity ?? this.grainIntensity,
       isInteractive: isInteractive ?? this.isInteractive,
+      zFlatness: zFlatness ?? this.zFlatness,
     );
   }
 
@@ -244,6 +253,7 @@ class LiquidGlassSettings {
       lightBandStrength: _lerpDouble(a.lightBandStrength, b.lightBandStrength, t),
       grainIntensity: _lerpDouble(a.grainIntensity, b.grainIntensity, t),
       isInteractive: t < 0.5 ? a.isInteractive : b.isInteractive,
+      zFlatness: _lerpDouble(a.zFlatness, b.zFlatness, t),
     );
   }
 
@@ -272,7 +282,8 @@ class LiquidGlassSettings {
         lightBandWidth == other.lightBandWidth &&
         lightBandStrength == other.lightBandStrength &&
         grainIntensity == other.grainIntensity &&
-        isInteractive == other.isInteractive;
+        isInteractive == other.isInteractive &&
+        zFlatness == other.zFlatness;
   }
 
   @override
@@ -296,6 +307,7 @@ class LiquidGlassSettings {
         lightBandStrength,
         grainIntensity,
         isInteractive,
+        zFlatness,
       );
 
   @override
@@ -318,6 +330,7 @@ class LiquidGlassSettings {
       'lightBandWidth: $lightBandWidth, '
       'lightBandStrength: $lightBandStrength, '
       'grainIntensity: $grainIntensity, '
-      'isInteractive: $isInteractive'
+      'isInteractive: $isInteractive, '
+      'zFlatness: $zFlatness'
       ')';
 }

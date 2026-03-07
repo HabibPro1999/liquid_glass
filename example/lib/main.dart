@@ -44,19 +44,9 @@ class _DemoScreenState extends State<DemoScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF1A73E8),
-                  Color(0xFF9C27B0),
-                  Color(0xFFE91E63),
-                ],
-              ),
-            ),
-          ),
+          // Rich multi-layer background — creates light and dark regions so
+          // the Fresnel rim brightening is clearly visible at glass edges.
+          const _RichBackground(),
           SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
@@ -64,46 +54,113 @@ class _DemoScreenState extends State<DemoScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Liquid Glass Demo',
+                    'Liquid Glass',
                     style: TextStyle(
-                      fontSize: 28,
+                      fontSize: 32,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
+                      letterSpacing: -0.5,
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Apple-style glass rendering for Flutter',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white70,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+
+                  // ── Variant switcher ─────────────────────────────────────
                   const _SectionHeader(title: 'Variant'),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   _VariantSwitcher(
                     current: _variant,
                     onChanged: (v) => setState(() => _variant = v),
                   ),
-                  const SizedBox(height: 24),
-                  const _SectionHeader(title: 'Basic Glass Card'),
-                  const SizedBox(height: 8),
-                  LiquidGlass(
-                    settings: LiquidGlassSettings(variant: _variant),
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 20,
-                      ),
-                      child: Text(
-                        'This is a liquid glass card with the default squircle shape.',
-                        style: TextStyle(color: Colors.white, fontSize: 16),
+                  const SizedBox(height: 28),
+
+                  // ── Frosted Glass — hero demo ─────────────────────────────
+                  const _SectionHeader(title: 'Frosted Glass'),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 200,
+                    child: LiquidGlass(
+                      settings: LiquidGlassSettings(variant: _variant),
+                      shape: const Squircle(radius: 24),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 28,
+                          vertical: 24,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Frosted Glass Card',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'The background beneath is blurred and tinted '
+                              'through the glass surface. Fresnel rim '
+                              'brightening is visible at the edges.',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                                height: 1.5,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  const _SectionHeader(title: 'Shape Showcase'),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 28),
+
+                  // ── Variants — side-by-side comparison ───────────────────
+                  const _SectionHeader(title: 'Variants'),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _VariantCard(
+                          label: 'Regular (tinted)',
+                          description:
+                              'Visible tint adapts to the background colour.',
+                          variant: LiquidGlassVariant.regular,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _VariantCard(
+                          label: 'Clear (transparent)',
+                          description:
+                              'No tint — pure blur and specular chrome.',
+                          variant: LiquidGlassVariant.clear,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 28),
+
+                  // ── Shapes showcase ──────────────────────────────────────
+                  const _SectionHeader(title: 'Shapes'),
+                  const SizedBox(height: 10),
                   Wrap(
                     spacing: 12,
                     runSpacing: 12,
                     children: _shapes.entries.map((entry) {
                       return SizedBox(
-                        width: 80,
-                        height: 60,
+                        width: 100,
+                        height: 80,
                         child: LiquidGlass(
                           settings: LiquidGlassSettings(variant: _variant),
                           shape: entry.value,
@@ -113,7 +170,8 @@ class _DemoScreenState extends State<DemoScreen> {
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 10,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ),
@@ -121,9 +179,40 @@ class _DemoScreenState extends State<DemoScreen> {
                       );
                     }).toList(),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 28),
+
+                  // ── Glass Group ──────────────────────────────────────────
+                  const _SectionHeader(title: 'Glass Group'),
+                  const SizedBox(height: 10),
+                  LiquidGlassGroup(
+                    spacing: 8.0,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: List.generate(3, (i) {
+                        return Padding(
+                          padding: EdgeInsets.only(right: i < 2 ? 8.0 : 0),
+                          child: LiquidGlass(
+                            settings: LiquidGlassSettings(variant: _variant),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 16,
+                              ),
+                              child: Text(
+                                'Item ${i + 1}',
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+
+                  // ── Buttons ──────────────────────────────────────────────
                   const _SectionHeader(title: 'Buttons'),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   Row(
                     children: [
                       LiquidGlassButton(
@@ -157,33 +246,7 @@ class _DemoScreenState extends State<DemoScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 24),
-                  const _SectionHeader(title: 'Glass Group'),
-                  const SizedBox(height: 8),
-                  LiquidGlassGroup(
-                    spacing: 8.0,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: List.generate(3, (i) {
-                        return Padding(
-                          padding: EdgeInsets.only(right: i < 2 ? 8.0 : 0),
-                          child: LiquidGlass(
-                            settings:
-                                LiquidGlassSettings(variant: _variant),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Text(
-                                'Item ${i + 1}',
-                                style:
-                                    const TextStyle(color: Colors.white),
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
                 ],
               ),
             ),
@@ -194,6 +257,223 @@ class _DemoScreenState extends State<DemoScreen> {
   }
 }
 
+// ── Rich background ─────────────────────────────────────────────────────────
+
+/// A visually complex, widget-only background that creates both light and dark
+/// regions. No external assets or packages are required.
+class _RichBackground extends StatelessWidget {
+  const _RichBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Base gradient: deep navy → violet
+        Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF0D1B4B),
+                Color(0xFF2D1464),
+                Color(0xFF1A0A3C),
+              ],
+            ),
+          ),
+        ),
+
+        // Top-left bright blob — creates a light region for Fresnel contrast
+        Positioned(
+          left: -80,
+          top: -60,
+          child: _GlowBlob(
+            size: 340,
+            color: const Color(0xFF4A9EFF).withValues(alpha: 0.55),
+          ),
+        ),
+
+        // Top-right warm coral blob
+        Positioned(
+          right: -60,
+          top: 40,
+          child: _GlowBlob(
+            size: 260,
+            color: const Color(0xFFFF6B6B).withValues(alpha: 0.45),
+          ),
+        ),
+
+        // Centre-left teal accent
+        Positioned(
+          left: 20,
+          top: 260,
+          child: _GlowBlob(
+            size: 200,
+            color: const Color(0xFF00D4AA).withValues(alpha: 0.40),
+          ),
+        ),
+
+        // Centre bright yellow highlight — sharp contrast for rim test
+        Positioned(
+          left: 140,
+          top: 150,
+          child: _GlowBlob(
+            size: 160,
+            color: const Color(0xFFFFE066).withValues(alpha: 0.35),
+          ),
+        ),
+
+        // Lower-right deep magenta blob — dark side
+        Positioned(
+          right: -40,
+          bottom: 100,
+          child: _GlowBlob(
+            size: 300,
+            color: const Color(0xFFB03AFF).withValues(alpha: 0.50),
+          ),
+        ),
+
+        // Bottom-left cobalt blob
+        Positioned(
+          left: -30,
+          bottom: 60,
+          child: _GlowBlob(
+            size: 220,
+            color: const Color(0xFF1E6FFF).withValues(alpha: 0.40),
+          ),
+        ),
+
+        // Bright white sunspot — creates the highest-contrast light region
+        Positioned(
+          right: 60,
+          top: 200,
+          child: _GlowBlob(
+            size: 120,
+            color: Colors.white.withValues(alpha: 0.18),
+          ),
+        ),
+
+        // Thin diagonal stripe — adds geometric interest and horizontal banding
+        Positioned.fill(
+          child: CustomPaint(
+            painter: _DiagonalStripePainter(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Soft circular gradient blob used for the layered background.
+class _GlowBlob extends StatelessWidget {
+  const _GlowBlob({required this.size, required this.color});
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [color, color.withValues(alpha: 0)],
+          stops: const [0.0, 1.0],
+        ),
+      ),
+    );
+  }
+}
+
+/// Paints a few soft diagonal bands to add horizontal contrast variation.
+class _DiagonalStripePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    // Subtle semi-transparent light band across the upper third
+    final rect1 = Rect.fromLTWH(0, size.height * 0.08, size.width, 60);
+    paint.shader = LinearGradient(
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+      colors: [
+        Colors.white.withValues(alpha: 0),
+        Colors.white.withValues(alpha: 0.07),
+        Colors.white.withValues(alpha: 0),
+      ],
+    ).createShader(rect1);
+    canvas.drawRect(rect1, paint);
+
+    // Dark band in the lower half — creates shadow region
+    final rect2 = Rect.fromLTWH(0, size.height * 0.55, size.width, 80);
+    paint.shader = LinearGradient(
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+      colors: [
+        Colors.black.withValues(alpha: 0),
+        Colors.black.withValues(alpha: 0.18),
+        Colors.black.withValues(alpha: 0),
+      ],
+    ).createShader(rect2);
+    canvas.drawRect(rect2, paint);
+  }
+
+  @override
+  bool shouldRepaint(_DiagonalStripePainter oldDelegate) => false;
+}
+
+// ── Variant comparison card ─────────────────────────────────────────────────
+
+class _VariantCard extends StatelessWidget {
+  const _VariantCard({
+    required this.label,
+    required this.description,
+    required this.variant,
+  });
+
+  final String label;
+  final String description;
+  final LiquidGlassVariant variant;
+
+  @override
+  Widget build(BuildContext context) {
+    return LiquidGlass(
+      settings: LiquidGlassSettings(variant: variant),
+      shape: const Squircle(radius: 20),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              description,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Shared UI components ────────────────────────────────────────────────────
+
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.title});
 
@@ -202,12 +482,12 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(
-      title,
+      title.toUpperCase(),
       style: const TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        color: Colors.white70,
-        letterSpacing: 0.5,
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        color: Colors.white54,
+        letterSpacing: 1.2,
       ),
     );
   }
@@ -222,33 +502,39 @@ class _VariantSwitcher extends StatelessWidget {
   final LiquidGlassVariant current;
   final ValueChanged<LiquidGlassVariant> onChanged;
 
+  static String _label(LiquidGlassVariant v) {
+    return switch (v) {
+      LiquidGlassVariant.regular => 'Regular (tinted)',
+      LiquidGlassVariant.clear => 'Clear (transparent)',
+      LiquidGlassVariant.identity => 'Identity (off)',
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
       children: LiquidGlassVariant.values.map((v) {
         final selected = v == current;
-        return Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: TextButton(
-            onPressed: () => onChanged(v),
-            style: TextButton.styleFrom(
-              backgroundColor: selected
-                  ? Colors.white.withValues(alpha: 0.3)
-                  : Colors.transparent,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-                side: BorderSide(
-                  color: selected ? Colors.white : Colors.white54,
-                ),
-              ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 8,
+        return TextButton(
+          onPressed: () => onChanged(v),
+          style: TextButton.styleFrom(
+            backgroundColor: selected
+                ? Colors.white.withValues(alpha: 0.25)
+                : Colors.transparent,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: BorderSide(
+                color: selected ? Colors.white : Colors.white38,
               ),
             ),
-            child: Text(v.name),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          ),
+          child: Text(
+            _label(v),
+            style: const TextStyle(fontSize: 13),
           ),
         );
       }).toList(),

@@ -2,7 +2,7 @@
 #include <flutter/runtime_effect.glsl>
 
 // ---------------------------------------------------------------------------
-// Uniforms — float indices [0..25], sampler index [0]
+// Uniforms — float indices [0..26], sampler index [0]
 //
 // When used via ImageFilter.shader (BackdropFilter), the engine auto-sets:
 //   float indices 0, 1 → backdrop texture width/height
@@ -13,7 +13,7 @@
 
 uniform float u_width;               // 0: auto-set by engine (backdrop width)
 uniform float u_height;              // 1: auto-set by engine (backdrop height)
-uniform float u_blur_sigma;          // 2: blur radius
+uniform float u_blur_sigma;          // 2: unused in shader (blur handled by ImageFilter.compose on Dart side)
 uniform float u_refractive_index;    // 3: glass refractive index
 uniform float u_refract_strength;    // 4: refraction UV offset magnitude
 uniform float u_distort_falloff;     // 5: pixels from edge for refraction fade
@@ -37,6 +37,7 @@ uniform float u_shape_type;          // 22: SDF shape selector (0-4)
 uniform float u_shape_radius;        // 23: shape corner radius
 uniform float u_variant;             // 24: 0=regular, 1=clear, 2=identity
 uniform float u_merge_distance;      // 25: merge softness in pixels (from group spacing)
+uniform float u_z_flatness;          // 26: glass surface curvature (0.5=curved, 2.0=balanced, 4.0=flat)
 uniform sampler2D u_backdrop;        // sampler 0: backdrop texture
 
 out vec4 fragColor;
@@ -117,16 +118,14 @@ float evalSDF(vec2 p, vec2 halfSize, float radius) {
 }
 
 // Compute SDF gradient (outward normal) via finite differences.
-// Returns a normalized 2D normal vector.
-vec2 sdfNormal(vec2 p, vec2 halfSize, float radius) {
-    float eps = 0.5;
+// Returns a normalized 3D normal vector with z from u_z_flatness.
+vec3 sdfNormal(vec2 p, vec2 halfSize, float radius) {
+    float eps = 1.5;
     float dx = evalSDF(p + vec2(eps, 0.0), halfSize, radius)
              - evalSDF(p - vec2(eps, 0.0), halfSize, radius);
     float dy = evalSDF(p + vec2(0.0, eps), halfSize, radius)
              - evalSDF(p - vec2(0.0, eps), halfSize, radius);
-    vec2 grad = vec2(dx, dy);
-    float len = length(grad);
-    return (len > 0.0001) ? grad / len : vec2(0.0, 1.0);
+    return normalize(vec3(dx, dy, u_z_flatness));
 }
 
 // Schlick Fresnel approximation.
@@ -174,22 +173,29 @@ void main() {
         return;
     }
 
-    // --- Surface normal from SDF gradient ---
-    vec2 N2 = sdfNormal(localP, halfSize, u_shape_radius);
+    // --- Surface normal from SDF gradient (3D) ---
+    vec3 N = sdfNormal(localP, halfSize, u_shape_radius);
 
     // --- Edge falloff for refraction modulation ---
     // d < 0 inside; clamp inner region to [0, u_distort_falloff] and normalize.
     float innerDist = clamp(-d, 0.0, u_distort_falloff);
     float falloff = pow(innerDist / max(u_distort_falloff, 0.001), u_distort_exponent);
 
-    // --- Refraction UV offset ---
-    vec2 refractOffset = N2 * u_refract_strength * falloff / vec2(u_width, u_height);
+    // --- Physical refraction UV offset using GLSL refract() ---
+    vec3 incident = vec3(0.0, 0.0, -1.0);
+    float eta = 1.0 / u_refractive_index;
+    vec3 refracted = refract(incident, N, eta);
+    float refractionScale = (u_refractive_index - 1.0) * 0.15;
+    vec2 refractOffset = refracted.xy * refractionScale * falloff / vec2(u_width, u_height);
     vec2 refractedUV   = clamp(uv + refractOffset, 0.0, 1.0);
 
-    // --- Chromatic aberration (per-channel UV offset) ---
-    vec2 caOffset = N2 * u_chromatic_aberration * falloff / vec2(u_width, u_height);
-    vec2 uvR = clamp(refractedUV + caOffset, 0.0, 1.0);
-    vec2 uvB = clamp(refractedUV - caOffset, 0.0, 1.0);
+    // --- Chromatic aberration (per-channel refract() with BK7 dispersion) ---
+    vec3 refR = refract(incident, N, 1.0 / 1.519);
+    vec3 refG = refract(incident, N, 1.0 / 1.522);
+    vec3 refB = refract(incident, N, 1.0 / 1.525);
+    float caScale = u_chromatic_aberration * falloff;
+    vec2 uvR = clamp(refractedUV + refR.xy * caScale / vec2(u_width, u_height), 0.0, 1.0);
+    vec2 uvB = clamp(refractedUV + refB.xy * caScale / vec2(u_width, u_height), 0.0, 1.0);
 
     float r = texture(u_backdrop, uvR).r;
     float g = texture(u_backdrop, refractedUV).g;
@@ -198,24 +204,41 @@ void main() {
 
     vec4 baseColor = vec4(r, g, b, a);
 
+    // --- Variant differentiation ---
+    float variantTintMul = 1.0;    // regular: full tint
+    float variantSpecMul = 1.0;    // regular: full specular
+    float variantSatMul  = 1.0;    // regular: full saturation
+    if (u_variant > 0.5 && u_variant < 1.5) {
+        // Clear variant: suppress tint, reduce specular, neutral saturation
+        variantTintMul = 0.0;
+        variantSpecMul = 0.5;
+        variantSatMul  = 0.0;  // no extra saturation boost for clear
+    }
+
     // --- Saturation adjustment ---
     float luma = dot(baseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-    baseColor.rgb = mix(vec3(luma), baseColor.rgb, u_saturation);
+    baseColor.rgb = mix(vec3(luma), baseColor.rgb, mix(1.0, u_saturation, variantSatMul));
 
     // --- Specular lighting ---
     // Light direction from angle (screen-space: y increases downward so flip y).
     vec2 lightDir = vec2(cos(u_light_angle), -sin(u_light_angle));
 
-    // Primary specular: NdotL raised to shininess power.
-    float NdotL = max(dot(N2, lightDir), 0.0);
+    // Primary specular: NdotL raised to shininess power (using N.xy for 2D screen-space tilt).
+    float NdotL = max(dot(N.xy, lightDir), 0.0);
     float spec  = pow(NdotL, u_spec_power) * u_light_intensity;
 
     // Kick specular: light from back side of surface.
-    float NdotL_back = max(dot(-N2, lightDir), 0.0);
+    float NdotL_back = max(dot(-N.xy, lightDir), 0.0);
     float specKick   = pow(NdotL_back, u_spec_kick_power) * u_spec_kick_intensity;
 
-    float totalSpec = spec + specKick;
-    baseColor.rgb  += vec3(totalSpec);
+    float totalSpec = (spec + specKick) * variantSpecMul;
+
+    // --- Fresnel rim ---
+    float r0 = pow((1.0 - u_refractive_index) / (1.0 + u_refractive_index), 2.0);
+    float fresnelTerm = fresnel(N.z, r0);
+    float fresnelRim  = fresnelTerm * 0.3;  // subtle edge brightness
+
+    baseColor.rgb += vec3(totalSpec + fresnelRim);
 
     // --- Light band (inner glow) ---
     // Glow at distance u_lightband_offset from the SDF boundary, with width u_lightband_width.
@@ -227,7 +250,7 @@ void main() {
 
     // --- Tint compositing ---
     if (u_tint_a > 0.0) {
-        baseColor.rgb += vec3(u_tint_r, u_tint_g, u_tint_b) * u_tint_a;
+        baseColor.rgb += vec3(u_tint_r, u_tint_g, u_tint_b) * u_tint_a * variantTintMul;
     }
 
     // --- Film grain ---

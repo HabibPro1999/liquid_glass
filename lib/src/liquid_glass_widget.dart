@@ -44,6 +44,7 @@ class _Uniforms {
   static const int shapeRadius = 23;
   static const int variant = 24;
   static const int mergeDistance = 25;
+  static const int zFlatness = 26;
 }
 
 // Shape type values matching the evalSDF switch in liquid_glass.frag.
@@ -84,6 +85,7 @@ class LiquidGlass extends StatefulWidget {
     this.shape = LiquidGlassShape.defaultShape,
     this.isEnabled = true,
     this.mode = LiquidGlassMode.auto,
+    this.showShadow = true,
   });
 
   /// The widget to render inside the glass surface.
@@ -105,6 +107,10 @@ class LiquidGlass extends StatefulWidget {
   /// Defaults to [LiquidGlassMode.auto], which detects Impeller support at
   /// runtime. Override with [LiquidGlassMode.tier2] to force the fallback path.
   final LiquidGlassMode mode;
+
+  /// Whether to render a drop shadow beneath the glass surface.
+  /// Adds perceived depth/elevation. Defaults to true.
+  final bool showShadow;
 
   @override
   State<LiquidGlass> createState() => _LiquidGlassState();
@@ -314,6 +320,8 @@ class _LiquidGlassState extends State<LiquidGlass> {
 
     // Merge distance from group scope (0.0 if no group or no spacing).
     shader.setFloat(_Uniforms.mergeDistance, mergeDistanceValue);
+
+    shader.setFloat(_Uniforms.zFlatness, s.zFlatness);
   }
 
   double _shapeTypeValue(LiquidGlassShape shape) {
@@ -355,6 +363,23 @@ class _LiquidGlassState extends State<LiquidGlass> {
       Ellipse() => BorderRadius.circular(9999),
       Custom() => BorderRadius.circular(20.0),
     };
+  }
+
+  Widget _buildWithShadow(Widget glassWidget, BorderRadius borderRadius) {
+    if (!widget.showShadow) return glassWidget;
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: borderRadius,
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1A000000),
+            offset: Offset(0, 2),
+            blurRadius: 8,
+          ),
+        ],
+      ),
+      child: glassWidget,
+    );
   }
 
   /// Builds the Tier 2 fallback: BackdropFilter blur + additive chrome overlay.
@@ -426,7 +451,7 @@ class _LiquidGlassState extends State<LiquidGlass> {
 
     // mode: tier2 — always use the fallback, skip shader loading entirely.
     if (effectiveMode == LiquidGlassMode.tier2) {
-      return _buildTier2(borderRadius, effectiveSettings);
+      return _buildWithShadow(_buildTier2(borderRadius, effectiveSettings), borderRadius);
     }
 
     // Shader not yet loaded — show child without glass until ready.
@@ -441,7 +466,11 @@ class _LiquidGlassState extends State<LiquidGlass> {
 
       ImageFilter filter;
       try {
-        filter = ImageFilter.shader(_shader!);
+        final sigma = min(effectiveSettings.blurSigma, 25.0);
+        filter = ImageFilter.compose(
+          inner: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+          outer: ImageFilter.shader(_shader!),
+        );
       } on UnsupportedError {
         _supportsShader = false;
         final clampedSigma = min(effectiveSettings.blurSigma, 20.0);
@@ -451,16 +480,19 @@ class _LiquidGlassState extends State<LiquidGlass> {
         );
       }
 
-      return ClipRRect(
-        borderRadius: borderRadius,
-        child: BackdropFilter(
-          filter: filter,
-          child: widget.child,
+      return _buildWithShadow(
+        ClipRRect(
+          borderRadius: borderRadius,
+          child: BackdropFilter(
+            filter: filter,
+            child: widget.child,
+          ),
         ),
+        borderRadius,
       );
     } else {
       // Tier 2: fallback blur + specular chrome for Skia / web / old Android.
-      return _buildTier2(borderRadius, effectiveSettings);
+      return _buildWithShadow(_buildTier2(borderRadius, effectiveSettings), borderRadius);
     }
   }
 }
