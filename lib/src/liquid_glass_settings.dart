@@ -8,6 +8,31 @@ import 'liquid_glass_variant.dart';
 /// default calibrated to reproduce Apple's `.regular` glass appearance.
 /// Use [copyWith] for one-off overrides and [lerp] for animation.
 class LiquidGlassSettings {
+  /// Performance-optimized preset that reduces expensive visual effects.
+  ///
+  /// Disables chromatic aberration, reduces grain, and lowers specular
+  /// complexity for scenarios with many glass elements or older hardware.
+  const LiquidGlassSettings.highPerformance()
+      : variant = LiquidGlassVariant.regular,
+        tint = null,
+        blurSigma = 10.0,
+        refractiveIndex = 1.52,
+        refractionStrength = -0.04,
+        refractionFalloff = 45.0,
+        refractionFalloffExponent = 4.0,
+        saturation = 1.10,
+        chromaticAberration = 0.0,
+        lightAngle = 0.8,
+        lightIntensity = 1.0,
+        specularPower = 14.0,
+        specularKickPower = 20.0,
+        specularKickIntensity = 0.2,
+        lightBandOffset = 10.0,
+        lightBandWidth = 30.0,
+        lightBandStrength = 0.4,
+        grainIntensity = 0.0,
+        isInteractive = false;
+
   const LiquidGlassSettings({
     this.variant = LiquidGlassVariant.regular,
     this.tint,
