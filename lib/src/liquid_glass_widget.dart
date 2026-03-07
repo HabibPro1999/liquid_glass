@@ -1,7 +1,11 @@
+import 'dart:io' show Platform;
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import 'liquid_glass_fallback.dart';
+import 'liquid_glass_mode.dart';
 import 'liquid_glass_settings.dart';
 import 'liquid_glass_shape.dart';
 import 'liquid_glass_variant.dart';
@@ -57,10 +61,15 @@ class _VariantValue {
 /// On Impeller-backed platforms (iOS, Android with Vulkan), this renders
 /// using a custom GLSL fragment shader via [ImageFilter.shader]. On platforms
 /// where [ImageFilter.shader] is not supported (Skia, web), it falls back to
-/// a simple [ImageFilter.blur].
+/// a [ImageFilter.blur] + additive specular chrome via [GlassFallbackPainter].
 ///
 /// Set [isEnabled] to false or use [LiquidGlassVariant.identity] to render
 /// the child without any glass processing at zero GPU cost.
+///
+/// Use [mode] to override the automatic backend detection:
+/// - [LiquidGlassMode.auto] (default): detect Impeller at runtime.
+/// - [LiquidGlassMode.tier1]: force full shader path (debug use only).
+/// - [LiquidGlassMode.tier2]: force fallback path (accessibility / perf testing).
 class LiquidGlass extends StatefulWidget {
   const LiquidGlass({
     super.key,
@@ -68,12 +77,14 @@ class LiquidGlass extends StatefulWidget {
     this.settings = const LiquidGlassSettings(),
     this.shape = LiquidGlassShape.defaultShape,
     this.isEnabled = true,
+    this.mode = LiquidGlassMode.auto,
   });
 
   final Widget child;
   final LiquidGlassSettings settings;
   final LiquidGlassShape shape;
   final bool isEnabled;
+  final LiquidGlassMode mode;
 
   @override
   State<LiquidGlass> createState() => _LiquidGlassState();
@@ -81,20 +92,30 @@ class LiquidGlass extends StatefulWidget {
 
 class _LiquidGlassState extends State<LiquidGlass> {
   FragmentShader? _shader;
+  FragmentShader? _fallbackShader;
 
   // Static so Impeller capability detection only happens once across all
   // instances. null = not yet determined.
   static bool? _supportsShader;
+
+  // Static flag: emit the FlutterError.reportError fallback warning once only.
+  static bool _fallbackErrorReported = false;
 
   bool _disposed = false;
 
   @override
   void initState() {
     super.initState();
-    _loadShader();
+    _loadShaders();
   }
 
-  void _loadShader() {
+  void _loadShaders() {
+    // If mode forces tier2, skip the main shader and only load the fallback.
+    if (widget.mode == LiquidGlassMode.tier2) {
+      _loadFallbackShader();
+      return;
+    }
+
     FragmentProgram.fromAsset('shaders/liquid_glass.frag').then((program) {
       if (_disposed) return;
       final shader = program.fragmentShader();
@@ -111,10 +132,58 @@ class _LiquidGlassState extends State<LiquidGlass> {
       setState(() {
         _shader = shader;
       });
+
+      // If the backend does not support ImageFilter.shader, also load the
+      // lightweight fallback shader for chrome overlay.
+      if (_supportsShader == false) {
+        _reportFallbackOnce();
+        _loadFallbackShader();
+      }
     }).catchError((_) {
       // Shader loading failed (e.g., missing asset in test env).
       // Widget gracefully degrades to showing the child.
     });
+  }
+
+  void _loadFallbackShader() {
+    loadLightweightShader().then((shader) {
+      if (_disposed) return;
+      setState(() {
+        _fallbackShader = shader;
+      });
+    });
+  }
+
+  void _reportFallbackOnce() {
+    if (kDebugMode && !_fallbackErrorReported) {
+      _fallbackErrorReported = true;
+      final details = FlutterErrorDetails(
+        exception: UnsupportedError(
+          'LiquidGlass: ImageFilter.shader unavailable on this backend. '
+          'Using Tier 2 blur+specular fallback.',
+        ),
+        library: 'liquid_glass',
+        context: ErrorDescription('while initializing LiquidGlass rendering'),
+      );
+      // In test environments (flutter test), FlutterError.reportError propagates
+      // through the test binding and fails the test. Use dumpErrorToConsole to
+      // ensure the diagnostic is always visible without failing tests.
+      // In production debug builds, also call reportError so registered handlers
+      // (e.g. Crashlytics) receive the notification.
+      FlutterError.dumpErrorToConsole(details, forceReport: true);
+      if (!_isTestEnvironment) {
+        FlutterError.reportError(details);
+      }
+    }
+  }
+
+  static bool get _isTestEnvironment {
+    if (kIsWeb) return false;
+    try {
+      return Platform.environment.containsKey('FLUTTER_TEST');
+    } catch (_) {
+      return false;
+    }
   }
 
   @override
@@ -130,6 +199,8 @@ class _LiquidGlassState extends State<LiquidGlass> {
     _disposed = true;
     _shader?.dispose();
     _shader = null;
+    _fallbackShader?.dispose();
+    _fallbackShader = null;
     super.dispose();
   }
 
@@ -199,6 +270,36 @@ class _LiquidGlassState extends State<LiquidGlass> {
     };
   }
 
+  /// Builds the Tier 2 fallback: BackdropFilter blur + additive chrome overlay.
+  Widget _buildTier2(BorderRadius borderRadius) {
+    return ClipRRect(
+      borderRadius: borderRadius,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(
+          sigmaX: widget.settings.blurSigma,
+          sigmaY: widget.settings.blurSigma,
+        ),
+        child: Stack(
+          fit: StackFit.passthrough,
+          children: [
+            widget.child,
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: GlassFallbackPainter(
+                    settings: widget.settings,
+                    shape: widget.shape,
+                    shader: _fallbackShader,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Zero GPU cost paths.
@@ -207,14 +308,20 @@ class _LiquidGlassState extends State<LiquidGlass> {
       return widget.child;
     }
 
+    final borderRadius = _shapeBorderRadius(widget.shape);
+
+    // mode: tier2 — always use the fallback, skip shader loading entirely.
+    if (widget.mode == LiquidGlassMode.tier2) {
+      return _buildTier2(borderRadius);
+    }
+
     // Shader not yet loaded — show child without glass until ready.
     if (_shader == null) {
       return widget.child;
     }
 
-    final borderRadius = _shapeBorderRadius(widget.shape);
-
-    if (_supportsShader == true) {
+    // mode: tier1 — force the shader path regardless of backend capability.
+    if (widget.mode == LiquidGlassMode.tier1 || _supportsShader == true) {
       // Tier 1: Impeller path — full shader-based glass effect.
       return LayoutBuilder(
         builder: (context, constraints) {
@@ -248,17 +355,8 @@ class _LiquidGlassState extends State<LiquidGlass> {
         },
       );
     } else {
-      // Tier 2: fallback blur for Skia / web / old Android.
-      return ClipRRect(
-        borderRadius: borderRadius,
-        child: BackdropFilter(
-          filter: ImageFilter.blur(
-            sigmaX: widget.settings.blurSigma,
-            sigmaY: widget.settings.blurSigma,
-          ),
-          child: widget.child,
-        ),
-      );
+      // Tier 2: fallback blur + specular chrome for Skia / web / old Android.
+      return _buildTier2(borderRadius);
     }
   }
 }
