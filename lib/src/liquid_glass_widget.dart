@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'liquid_glass_fallback.dart';
+import 'liquid_glass_group.dart';
 import 'liquid_glass_mode.dart';
 import 'liquid_glass_settings.dart';
 import 'liquid_glass_shape.dart';
@@ -362,6 +363,10 @@ class _LiquidGlassState extends State<LiquidGlass> {
 
     // Step 3: Apply accessibility overrides to get effective settings.
     final effectiveSettings = _effectiveSettings(context);
+
+    // Step 3b: Read group merge distance (used in TASK-005-02 for shader uniform).
+    // ignore: unused_local_variable
+    final mergeDistance = LiquidGlassGroup.spacingOf(context) ?? 0.0;
 
     // Step 4: Accessibility may have forced identity variant (e.g. reduceTransparency proxy).
     if (effectiveSettings.variant == LiquidGlassVariant.identity) {
