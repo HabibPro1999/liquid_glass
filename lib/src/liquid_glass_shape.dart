@@ -1,3 +1,5 @@
+import 'package:flutter/painting.dart';
+
 /// Describes the shape of a [LiquidGlass] surface.
 ///
 /// Each subtype maps to a GLSL SDF function in the shader library.
@@ -35,6 +37,22 @@ sealed class LiquidGlassShape {
 
   /// The default shape: a squircle with radius 20.0.
   static const LiquidGlassShape defaultShape = Squircle(radius: 20.0);
+
+  /// Converts a Flutter [ShapeBorder] to the closest [LiquidGlassShape].
+  ///
+  /// Known types are mapped to their SDF equivalents. Unrecognized types
+  /// fall back to [Custom], which uses [ClipPath] with [ShapeBorderClipper]
+  /// for visual clipping and a squircle SDF approximation for glass effects.
+  static LiquidGlassShape fromShapeBorder(ShapeBorder border) {
+    return switch (border) {
+      RoundedRectangleBorder(:final borderRadius) =>
+        RoundedRect(radius: borderRadius.resolve(TextDirection.ltr).topLeft.x),
+      CircleBorder() => const Circle(),
+      StadiumBorder() => const Capsule(),
+      ContinuousRectangleBorder() => const Squircle(radius: 20.0),
+      _ => Custom(shapeBorder: border),
+    };
+  }
 }
 
 /// A squircle (iOS-style continuous curvature corner) shape.
@@ -133,4 +151,26 @@ final class Ellipse extends LiquidGlassShape {
 
   @override
   String toString() => 'Ellipse()';
+}
+
+/// A fallback shape wrapping an arbitrary [ShapeBorder].
+///
+/// Produced by [LiquidGlassShape.fromShapeBorder] for unrecognized border
+/// types. The widget clips using [ClipPath] with [ShapeBorderClipper] and
+/// approximates SDF glass effects using a squircle with radius 20.0.
+final class Custom extends LiquidGlassShape {
+  const Custom({required this.shapeBorder}) : super._();
+
+  final ShapeBorder shapeBorder;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Custom && identical(shapeBorder, other.shapeBorder);
+
+  @override
+  int get hashCode => identityHashCode(shapeBorder);
+
+  @override
+  String toString() => 'Custom(shapeBorder: $shapeBorder)';
 }

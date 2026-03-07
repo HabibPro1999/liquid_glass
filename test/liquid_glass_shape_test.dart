@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_glass/liquid_glass.dart';
 
@@ -174,6 +176,115 @@ void main() {
 
     test('Ellipse != Circle', () {
       expect(Ellipse(), isNot(equals(Circle())));
+    });
+  });
+
+  group('LiquidGlassShape.fromShapeBorder', () {
+    test('RoundedRectangleBorder converts to RoundedRect', () {
+      final shape = LiquidGlassShape.fromShapeBorder(
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      );
+      expect(shape, isA<RoundedRect>());
+      expect((shape as RoundedRect).radius, 16.0);
+    });
+
+    test('CircleBorder converts to Circle', () {
+      final shape = LiquidGlassShape.fromShapeBorder(const CircleBorder());
+      expect(shape, isA<Circle>());
+    });
+
+    test('StadiumBorder converts to Capsule', () {
+      final shape = LiquidGlassShape.fromShapeBorder(const StadiumBorder());
+      expect(shape, isA<Capsule>());
+    });
+
+    test('ContinuousRectangleBorder converts to Squircle with radius 20.0', () {
+      final shape = LiquidGlassShape.fromShapeBorder(
+        const ContinuousRectangleBorder(),
+      );
+      expect(shape, isA<Squircle>());
+      expect((shape as Squircle).radius, 20.0);
+    });
+
+    test('unrecognized ShapeBorder converts to Custom', () {
+      final shape = LiquidGlassShape.fromShapeBorder(
+        const BeveledRectangleBorder(),
+      );
+      expect(shape, isA<Custom>());
+    });
+
+    test('Custom stores original ShapeBorder by identity', () {
+      const border = BeveledRectangleBorder();
+      final shape =
+          LiquidGlassShape.fromShapeBorder(border) as Custom;
+      expect(shape.shapeBorder, same(border));
+    });
+  });
+
+  group('Custom equality', () {
+    test('same instance equals itself', () {
+      const border = BeveledRectangleBorder();
+      final custom = Custom(shapeBorder: border);
+      expect(custom, equals(custom));
+    });
+
+    test('two Custom instances with the same border identity are equal', () {
+      const border = BeveledRectangleBorder();
+      final a = Custom(shapeBorder: border);
+      final b = Custom(shapeBorder: border);
+      expect(a, equals(b));
+    });
+
+    test('two Custom instances with different (non-const) border instances are not equal', () {
+      // Use non-const instances to ensure distinct object identities.
+      // ignore: prefer_const_constructors
+      final borderA = BeveledRectangleBorder();
+      // ignore: prefer_const_constructors
+      final borderB = BeveledRectangleBorder();
+      final a = Custom(shapeBorder: borderA);
+      final b = Custom(shapeBorder: borderB);
+      expect(a, isNot(equals(b)));
+    });
+
+    test('toString is readable', () {
+      const border = BeveledRectangleBorder();
+      final custom = Custom(shapeBorder: border);
+      expect(custom.toString(), startsWith('Custom(shapeBorder:'));
+    });
+  });
+
+  group('fromShapeBorder widget smoke test', () {
+    FlutterExceptionHandler? originalOnError;
+
+    setUp(() {
+      originalOnError = FlutterError.onError;
+      FlutterError.onError = (FlutterErrorDetails details) {
+        final message = details.exception.toString();
+        if (message.contains('ImageFilter.shader unavailable')) return;
+        originalOnError?.call(details);
+      };
+    });
+
+    tearDown(() {
+      FlutterError.onError = originalOnError;
+    });
+
+    testWidgets(
+        'LiquidGlass with fromShapeBorder(CircleBorder) renders without errors',
+        (tester) async {
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: LiquidGlass(
+            shape: LiquidGlassShape.fromShapeBorder(const CircleBorder()),
+            child: const Text('Hi'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Hi'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 }

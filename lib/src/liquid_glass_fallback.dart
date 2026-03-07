@@ -34,6 +34,7 @@ class GlassFallbackPainter extends CustomPainter {
       Circle() => 0.0,
       Capsule() => 0.0,
       Ellipse() => 0.0,
+      Custom() => 20.0,
     };
   }
 

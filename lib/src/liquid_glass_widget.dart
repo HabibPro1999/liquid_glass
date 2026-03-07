@@ -224,6 +224,19 @@ class _LiquidGlassState extends State<LiquidGlass> {
       settings = settings.copyWith(isInteractive: false);
     }
 
+    // platformBrightness tint adaptation for regular variant
+    if (settings.variant == LiquidGlassVariant.regular &&
+        settings.tint == null) {
+      final brightness = MediaQuery.platformBrightnessOf(context);
+      if (brightness == Brightness.dark) {
+        // Dark mode: apply subtle neutral warm tint lift
+        settings = settings.copyWith(
+          tint: const Color(0x0DFFFFFF), // very subtle white lift
+        );
+      }
+      // Light mode: no automatic tint (transparent/clear is correct)
+    }
+
     return settings;
   }
 
@@ -271,6 +284,7 @@ class _LiquidGlassState extends State<LiquidGlass> {
       Circle() => _ShapeType.circle,
       Capsule() => _ShapeType.capsule,
       Ellipse() => _ShapeType.ellipse,
+      Custom() => _ShapeType.squircle,
     };
   }
 
@@ -281,6 +295,7 @@ class _LiquidGlassState extends State<LiquidGlass> {
       Circle() => 0.0,
       Capsule() => 0.0,
       Ellipse() => 0.0,
+      Custom() => 20.0,
     };
   }
 
@@ -299,6 +314,7 @@ class _LiquidGlassState extends State<LiquidGlass> {
       Circle() => BorderRadius.circular(9999),
       Capsule() => BorderRadius.circular(9999),
       Ellipse() => BorderRadius.circular(9999),
+      Custom() => BorderRadius.circular(20.0),
     };
   }
 

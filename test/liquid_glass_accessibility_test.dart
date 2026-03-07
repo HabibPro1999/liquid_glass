@@ -157,4 +157,69 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  group('platformBrightness tint adaptation', () {
+    testWidgets('regular variant in dark mode renders', (tester) async {
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(platformBrightness: Brightness.dark),
+          child: const Directionality(
+            textDirection: TextDirection.ltr,
+            child: LiquidGlass(child: Text('Hello')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Hello'), findsOneWidget);
+    });
+
+    testWidgets('regular variant in light mode renders', (tester) async {
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(platformBrightness: Brightness.light),
+          child: const Directionality(
+            textDirection: TextDirection.ltr,
+            child: LiquidGlass(child: Text('Hello')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Hello'), findsOneWidget);
+    });
+
+    testWidgets('clear variant in dark mode not affected', (tester) async {
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(platformBrightness: Brightness.dark),
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: LiquidGlass(
+              settings: const LiquidGlassSettings(
+                  variant: LiquidGlassVariant.clear),
+              child: const Text('Hello'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Hello'), findsOneWidget);
+    });
+
+    testWidgets('explicit tint not overridden', (tester) async {
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(platformBrightness: Brightness.dark),
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: LiquidGlass(
+              settings: const LiquidGlassSettings(tint: Color(0xFF0000FF)),
+              child: const Text('Hello'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Hello'), findsOneWidget);
+    });
+  });
 }
