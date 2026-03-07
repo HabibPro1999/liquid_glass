@@ -204,8 +204,31 @@ class _LiquidGlassState extends State<LiquidGlass> {
     super.dispose();
   }
 
-  void _setUniforms(FragmentShader shader, double width, double height) {
-    final s = widget.settings;
+  LiquidGlassSettings _effectiveSettings(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    var settings = widget.settings;
+
+    // reduceTransparency proxy: disableAnimations is the closest available
+    // Flutter API. When active, force identity variant so glass is skipped.
+    if (mq.disableAnimations) {
+      settings = settings.copyWith(variant: LiquidGlassVariant.identity);
+    }
+
+    // highContrast: boost saturation and lightIntensity for legibility.
+    if (mq.highContrast) {
+      settings = settings.copyWith(saturation: 1.35, lightIntensity: 1.8);
+    }
+
+    // disableAnimations: disable interactive physics and shimmer.
+    if (mq.disableAnimations) {
+      settings = settings.copyWith(isInteractive: false);
+    }
+
+    return settings;
+  }
+
+  void _setUniforms(FragmentShader shader, double width, double height,
+      LiquidGlassSettings s) {
     final tint = s.tint;
 
     shader.setFloat(_Uniforms.width, width);
@@ -280,13 +303,13 @@ class _LiquidGlassState extends State<LiquidGlass> {
   }
 
   /// Builds the Tier 2 fallback: BackdropFilter blur + additive chrome overlay.
-  Widget _buildTier2(BorderRadius borderRadius) {
+  Widget _buildTier2(BorderRadius borderRadius, LiquidGlassSettings settings) {
     return ClipRRect(
       borderRadius: borderRadius,
       child: BackdropFilter(
         filter: ImageFilter.blur(
-          sigmaX: widget.settings.blurSigma,
-          sigmaY: widget.settings.blurSigma,
+          sigmaX: settings.blurSigma,
+          sigmaY: settings.blurSigma,
         ),
         child: Stack(
           fit: StackFit.passthrough,
@@ -296,7 +319,7 @@ class _LiquidGlassState extends State<LiquidGlass> {
               child: IgnorePointer(
                 child: CustomPaint(
                   painter: GlassFallbackPainter(
-                    settings: widget.settings,
+                    settings: settings,
                     shape: widget.shape,
                     shader: _fallbackShader,
                   ),
@@ -311,17 +334,30 @@ class _LiquidGlassState extends State<LiquidGlass> {
 
   @override
   Widget build(BuildContext context) {
-    // Zero GPU cost paths.
-    if (!widget.isEnabled ||
-        widget.settings.variant == LiquidGlassVariant.identity) {
+    // Step 1: User-explicit disabled check — zero GPU cost.
+    if (!widget.isEnabled) {
       return widget.child;
     }
 
+    // Step 2: User-explicit identity variant — zero GPU cost.
+    if (widget.settings.variant == LiquidGlassVariant.identity) {
+      return widget.child;
+    }
+
+    // Step 3: Apply accessibility overrides to get effective settings.
+    final effectiveSettings = _effectiveSettings(context);
+
+    // Step 4: Accessibility may have forced identity variant (e.g. reduceTransparency proxy).
+    if (effectiveSettings.variant == LiquidGlassVariant.identity) {
+      return widget.child;
+    }
+
+    // Step 5: Use effective settings for all rendering.
     final borderRadius = _shapeBorderRadius(widget.shape);
 
     // mode: tier2 — always use the fallback, skip shader loading entirely.
     if (widget.mode == LiquidGlassMode.tier2) {
-      return _buildTier2(borderRadius);
+      return _buildTier2(borderRadius, effectiveSettings);
     }
 
     // Shader not yet loaded — show child without glass until ready.
@@ -341,7 +377,7 @@ class _LiquidGlassState extends State<LiquidGlass> {
               ? MediaQuery.sizeOf(context).height
               : constraints.maxHeight;
 
-          _setUniforms(_shader!, width, height);
+          _setUniforms(_shader!, width, height, effectiveSettings);
 
           ImageFilter filter;
           try {
@@ -349,8 +385,8 @@ class _LiquidGlassState extends State<LiquidGlass> {
           } on UnsupportedError {
             _supportsShader = false;
             filter = ImageFilter.blur(
-              sigmaX: widget.settings.blurSigma,
-              sigmaY: widget.settings.blurSigma,
+              sigmaX: effectiveSettings.blurSigma,
+              sigmaY: effectiveSettings.blurSigma,
             );
           }
 
@@ -365,7 +401,7 @@ class _LiquidGlassState extends State<LiquidGlass> {
       );
     } else {
       // Tier 2: fallback blur + specular chrome for Skia / web / old Android.
-      return _buildTier2(borderRadius);
+      return _buildTier2(borderRadius, effectiveSettings);
     }
   }
 }
