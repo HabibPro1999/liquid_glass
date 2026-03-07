@@ -5,6 +5,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import 'glass_theme.dart';
 import 'liquid_glass_fallback.dart';
 import 'liquid_glass_group.dart';
 import 'liquid_glass_mode.dart';
@@ -223,7 +224,20 @@ class _LiquidGlassState extends State<LiquidGlass> {
 
   LiquidGlassSettings _effectiveSettings(BuildContext context) {
     final mq = MediaQuery.of(context);
+    final themeData = GlassTheme.maybeOf(context);
+
+    // Start from theme settings if widget uses defaults, otherwise widget settings.
     var settings = widget.settings;
+    if (themeData != null) {
+      if (settings == const LiquidGlassSettings()) {
+        settings = themeData.settings;
+      }
+      // Apply variant override from theme if present.
+      if (themeData.variant != null &&
+          settings.variant == LiquidGlassVariant.regular) {
+        settings = settings.copyWith(variant: themeData.variant);
+      }
+    }
 
     // reduceTransparency proxy: disableAnimations is the closest available
     // Flutter API. When active, force identity variant so glass is skipped.
@@ -391,6 +405,12 @@ class _LiquidGlassState extends State<LiquidGlass> {
     // Step 3b: Read group merge distance for shader uniform (u_merge_distance).
     final mergeDistance = LiquidGlassGroup.spacingOf(context) ?? 0.0;
 
+    // Step 3c: Compute effective mode — theme can override auto.
+    final themeData = GlassTheme.maybeOf(context);
+    final effectiveMode = widget.mode != LiquidGlassMode.auto
+        ? widget.mode
+        : (themeData?.mode ?? LiquidGlassMode.auto);
+
     // Step 4: Accessibility may have forced identity variant (e.g. reduceTransparency proxy).
     if (effectiveSettings.variant == LiquidGlassVariant.identity) {
       return widget.child;
@@ -400,7 +420,7 @@ class _LiquidGlassState extends State<LiquidGlass> {
     final borderRadius = _shapeBorderRadius(widget.shape);
 
     // mode: tier2 — always use the fallback, skip shader loading entirely.
-    if (widget.mode == LiquidGlassMode.tier2) {
+    if (effectiveMode == LiquidGlassMode.tier2) {
       return _buildTier2(borderRadius, effectiveSettings);
     }
 
@@ -410,7 +430,7 @@ class _LiquidGlassState extends State<LiquidGlass> {
     }
 
     // mode: tier1 — force the shader path regardless of backend capability.
-    if (widget.mode == LiquidGlassMode.tier1 || _supportsShader == true) {
+    if (effectiveMode == LiquidGlassMode.tier1 || _supportsShader == true) {
       // Tier 1: Impeller path — full shader-based glass effect.
       return LayoutBuilder(
         builder: (context, constraints) {

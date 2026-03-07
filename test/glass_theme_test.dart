@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_glass/liquid_glass.dart';
@@ -177,6 +178,119 @@ void main() {
         ),
       );
       expect(captured, customData);
+    });
+  });
+
+  group('LiquidGlass + GlassTheme integration', () {
+    FlutterExceptionHandler? originalOnError;
+
+    setUp(() {
+      originalOnError = FlutterError.onError;
+      FlutterError.onError = (FlutterErrorDetails details) {
+        final message = details.exception.toString();
+        if (message.contains('ImageFilter.shader unavailable')) return;
+        originalOnError?.call(details);
+      };
+    });
+
+    tearDown(() {
+      FlutterError.onError = originalOnError;
+    });
+
+    testWidgets('LiquidGlass inside GlassTheme renders without error',
+        (tester) async {
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: MediaQuery(
+            data: const MediaQueryData(),
+            child: GlassTheme(
+              data: const GlassThemeData(
+                settings: LiquidGlassSettings(blurSigma: 20.0),
+              ),
+              child: const LiquidGlass(
+                child: Text('Themed'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Themed'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('LiquidGlass with explicit settings overrides theme',
+        (tester) async {
+      // Widget has explicit (non-default) settings — theme settings are ignored.
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: MediaQuery(
+            data: const MediaQueryData(),
+            child: GlassTheme(
+              data: const GlassThemeData(
+                settings: LiquidGlassSettings(blurSigma: 20.0),
+              ),
+              child: const LiquidGlass(
+                settings: LiquidGlassSettings(blurSigma: 5.0),
+                child: Text('Override'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Override'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('GlassTheme with variant override propagates to child',
+        (tester) async {
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: MediaQuery(
+            data: const MediaQueryData(),
+            child: GlassTheme(
+              data: const GlassThemeData(variant: LiquidGlassVariant.clear),
+              child: const LiquidGlass(
+                child: Text('Variant'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Variant'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('GlassTheme with mode tier2 propagates to child',
+        (tester) async {
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: MediaQuery(
+            data: const MediaQueryData(),
+            child: GlassTheme(
+              data: const GlassThemeData(mode: LiquidGlassMode.tier2),
+              child: const LiquidGlass(
+                child: Text('ModeOverride'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('ModeOverride'), findsOneWidget);
+      // tier2 mode always produces a BackdropFilter.
+      expect(find.byType(BackdropFilter), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 
