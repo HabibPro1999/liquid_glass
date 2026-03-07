@@ -12,20 +12,20 @@ void main() {
   // widget reports a FlutterError once (debug only). We capture that expected
   // error globally so individual tests are not marked as failures.
 
-  FlutterExceptionHandler? _originalOnError;
+  FlutterExceptionHandler? originalOnError;
 
   setUp(() {
-    _originalOnError = FlutterError.onError;
+    originalOnError = FlutterError.onError;
     FlutterError.onError = (FlutterErrorDetails details) {
       // Swallow the known fallback warning. All other errors are re-thrown.
       final message = details.exception.toString();
       if (message.contains('ImageFilter.shader unavailable')) return;
-      _originalOnError?.call(details);
+      originalOnError?.call(details);
     };
   });
 
   tearDown(() {
-    FlutterError.onError = _originalOnError;
+    FlutterError.onError = originalOnError;
   });
 
   group('LiquidGlass widget', () {

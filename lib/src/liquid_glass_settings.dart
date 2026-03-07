@@ -1,7 +1,6 @@
 import 'dart:ui' show Color;
 
 import 'liquid_glass_variant.dart';
-import 'liquid_glass_shape.dart';
 
 /// Immutable configuration object for the [LiquidGlass] widget.
 ///
