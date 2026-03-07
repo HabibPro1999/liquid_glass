@@ -274,4 +274,96 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  group('LiquidGlassButton integration', () {
+    testWidgets('LiquidGlassButton inside LiquidGlassGroup renders without errors',
+        (tester) async {
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(),
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: LiquidGlassGroup(
+              child: LiquidGlassButton(
+                onPressed: () {},
+                child: const Text('Test'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Test'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('Multiple LiquidGlassButtons in a Row inside LiquidGlassGroup render',
+        (tester) async {
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(),
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: LiquidGlassGroup(
+              spacing: 8.0,
+              child: Row(
+                children: [
+                  LiquidGlassButton(onPressed: () {}, child: const Text('A')),
+                  LiquidGlassButton(onPressed: () {}, child: const Text('B')),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('A'), findsOneWidget);
+      expect(find.text('B'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('LiquidGlassButton with custom settings overrides style defaults',
+        (tester) async {
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(),
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: LiquidGlassButton(
+              onPressed: () {},
+              settings: const LiquidGlassSettings(blurSigma: 20.0),
+              child: const Text('Custom'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Custom'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('LiquidGlassButton with custom shape (not default capsule) renders',
+        (tester) async {
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(),
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: LiquidGlassButton(
+              onPressed: () {},
+              shape: LiquidGlassShape.roundedRect(radius: 8.0),
+              child: const Text('Rect'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Rect'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
 }
