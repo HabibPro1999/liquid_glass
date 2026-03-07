@@ -32,11 +32,22 @@ class LiquidGlassButton extends StatefulWidget {
     this.pressedScale = 0.94,
   });
 
+  /// The widget to display inside the button.
   final Widget child;
+
+  /// Called when the button is tapped. Null disables the button.
   final VoidCallback? onPressed;
+
+  /// Visual style preset controlling light intensity and tint.
   final LiquidGlassButtonStyle style;
+
+  /// Optional settings override applied on top of the [style] defaults.
   final LiquidGlassSettings? settings;
+
+  /// Shape of the glass surface. Defaults to [LiquidGlassShape.capsule].
   final LiquidGlassShape? shape;
+
+  /// Scale factor applied during press. Range: 0.0–1.0. Defaults to 0.94.
   final double pressedScale;
 
   @override

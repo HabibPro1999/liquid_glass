@@ -1,6 +1,13 @@
 name: liquid_glass
 description: A Flutter package implementing Apple's Liquid Glass effect using ImageFilter.shader.
-version: 0.1.0
+version: 1.0.0
+repository: https://github.com/user/liquid_glass
+issue_tracker: https://github.com/user/liquid_glass/issues
+topics:
+  - ui
+  - effects
+  - glass
+  - shader
 
 environment:
   sdk: ">=3.6.0 <4.0.0"

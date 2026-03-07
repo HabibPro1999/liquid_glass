@@ -83,10 +83,24 @@ class LiquidGlass extends StatefulWidget {
     this.mode = LiquidGlassMode.auto,
   });
 
+  /// The widget to render inside the glass surface.
   final Widget child;
+
+  /// Visual parameters for the glass effect.
   final LiquidGlassSettings settings;
+
+  /// The SDF shape that defines the glass surface boundary.
   final LiquidGlassShape shape;
+
+  /// Whether the glass effect is applied.
+  ///
+  /// When false the [child] is returned directly at zero GPU cost.
   final bool isEnabled;
+
+  /// Rendering backend selection.
+  ///
+  /// Defaults to [LiquidGlassMode.auto], which detects Impeller support at
+  /// runtime. Override with [LiquidGlassMode.tier2] to force the fallback path.
   final LiquidGlassMode mode;
 
   @override

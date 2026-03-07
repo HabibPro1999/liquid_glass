@@ -161,6 +161,7 @@ final class Ellipse extends LiquidGlassShape {
 final class Custom extends LiquidGlassShape {
   const Custom({required this.shapeBorder}) : super._();
 
+  /// The Flutter [ShapeBorder] used for visual clipping.
   final ShapeBorder shapeBorder;
 
   @override
