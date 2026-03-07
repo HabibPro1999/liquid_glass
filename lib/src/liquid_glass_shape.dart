@@ -15,42 +15,23 @@ sealed class LiquidGlassShape {
   /// A rounded rectangle shape.
   ///
   /// Maps to the [sdRoundedRect] GLSL function.
-  ///
-  /// Available in Phase 2.
-  static LiquidGlassShape roundedRect({double radius = 8.0}) =>
-      throw UnimplementedError(
-        'LiquidGlassShape.roundedRect is available in Phase 2.',
-      );
+  static LiquidGlassShape roundedRect({double radius = 12.0}) =>
+      RoundedRect(radius: radius);
 
   /// A perfect circle shape.
   ///
   /// Maps to the [sdCircle] GLSL function.
-  ///
-  /// Available in Phase 2.
-  static LiquidGlassShape circle() =>
-      throw UnimplementedError(
-        'LiquidGlassShape.circle is available in Phase 2.',
-      );
+  static LiquidGlassShape circle() => Circle();
 
   /// A capsule (full pill / stadium) shape.
   ///
   /// Maps to the [sdCapsule] GLSL function.
-  ///
-  /// Available in Phase 2.
-  static LiquidGlassShape capsule() =>
-      throw UnimplementedError(
-        'LiquidGlassShape.capsule is available in Phase 2.',
-      );
+  static LiquidGlassShape capsule() => Capsule();
 
   /// An axis-aligned ellipse shape.
   ///
   /// Maps to the [sdEllipse] GLSL function.
-  ///
-  /// Available in Phase 2.
-  static LiquidGlassShape ellipse() =>
-      throw UnimplementedError(
-        'LiquidGlassShape.ellipse is available in Phase 2.',
-      );
+  static LiquidGlassShape ellipse() => Ellipse();
 
   /// The default shape: a squircle with radius 20.0.
   static const LiquidGlassShape defaultShape = Squircle(radius: 20.0);
@@ -78,4 +59,78 @@ final class Squircle extends LiquidGlassShape {
 
   @override
   String toString() => 'Squircle(radius: $radius)';
+}
+
+/// A rounded rectangle shape.
+///
+/// Produced by [LiquidGlassShape.roundedRect].
+final class RoundedRect extends LiquidGlassShape {
+  const RoundedRect({required this.radius}) : super._();
+
+  /// The corner radius. Defaults to 12.0.
+  final double radius;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RoundedRect &&
+          runtimeType == other.runtimeType &&
+          radius == other.radius;
+
+  @override
+  int get hashCode => radius.hashCode;
+
+  @override
+  String toString() => 'RoundedRect(radius: $radius)';
+}
+
+/// A perfect circle shape.
+///
+/// Produced by [LiquidGlassShape.circle].
+final class Circle extends LiquidGlassShape {
+  const Circle() : super._();
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) || other is Circle;
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+
+  @override
+  String toString() => 'Circle()';
+}
+
+/// A capsule (full pill / stadium) shape.
+///
+/// Produced by [LiquidGlassShape.capsule].
+final class Capsule extends LiquidGlassShape {
+  const Capsule() : super._();
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) || other is Capsule;
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+
+  @override
+  String toString() => 'Capsule()';
+}
+
+/// An axis-aligned ellipse shape.
+///
+/// Produced by [LiquidGlassShape.ellipse].
+final class Ellipse extends LiquidGlassShape {
+  const Ellipse() : super._();
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) || other is Ellipse;
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+
+  @override
+  String toString() => 'Ellipse()';
 }

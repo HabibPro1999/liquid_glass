@@ -284,32 +284,25 @@ void main() {
       expect((shape as Squircle).radius, 20.0);
     });
 
-    test('roundedRect throws UnimplementedError', () {
-      expect(
-        () => LiquidGlassShape.roundedRect(),
-        throwsA(isA<UnimplementedError>()),
-      );
+    test('roundedRect creates RoundedRect with default radius 12.0', () {
+      final shape = LiquidGlassShape.roundedRect();
+      expect(shape, isA<RoundedRect>());
+      expect((shape as RoundedRect).radius, 12.0);
     });
 
-    test('circle throws UnimplementedError', () {
-      expect(
-        () => LiquidGlassShape.circle(),
-        throwsA(isA<UnimplementedError>()),
-      );
+    test('circle creates Circle', () {
+      final shape = LiquidGlassShape.circle();
+      expect(shape, isA<Circle>());
     });
 
-    test('capsule throws UnimplementedError', () {
-      expect(
-        () => LiquidGlassShape.capsule(),
-        throwsA(isA<UnimplementedError>()),
-      );
+    test('capsule creates Capsule', () {
+      final shape = LiquidGlassShape.capsule();
+      expect(shape, isA<Capsule>());
     });
 
-    test('ellipse throws UnimplementedError', () {
-      expect(
-        () => LiquidGlassShape.ellipse(),
-        throwsA(isA<UnimplementedError>()),
-      );
+    test('ellipse creates Ellipse', () {
+      final shape = LiquidGlassShape.ellipse();
+      expect(shape, isA<Ellipse>());
     });
   });
 }

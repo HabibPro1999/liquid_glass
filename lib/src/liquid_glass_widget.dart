@@ -41,9 +41,12 @@ class _Uniforms {
 }
 
 // Shape type values matching the evalSDF switch in liquid_glass.frag.
-// Additional types (circle, capsule, ellipse) added in Phase 2.
 class _ShapeType {
+  static const double roundedRect = 0.0;
   static const double squircle = 1.0;
+  static const double circle = 2.0;
+  static const double capsule = 3.0;
+  static const double ellipse = 4.0;
 }
 
 // Variant values matching the GLSL comment: 0=regular, 1=clear, 2=identity.
@@ -239,16 +242,22 @@ class _LiquidGlassState extends State<LiquidGlass> {
   }
 
   double _shapeTypeValue(LiquidGlassShape shape) {
-    // Phase 2 will add more shape types here.
     return switch (shape) {
+      RoundedRect() => _ShapeType.roundedRect,
       Squircle() => _ShapeType.squircle,
+      Circle() => _ShapeType.circle,
+      Capsule() => _ShapeType.capsule,
+      Ellipse() => _ShapeType.ellipse,
     };
   }
 
   double _shapeRadius(LiquidGlassShape shape) {
-    // Phase 2 will add more shape types here.
     return switch (shape) {
+      RoundedRect(:final radius) => radius,
       Squircle(:final radius) => radius,
+      Circle() => 0.0,
+      Capsule() => 0.0,
+      Ellipse() => 0.0,
     };
   }
 
@@ -261,9 +270,12 @@ class _LiquidGlassState extends State<LiquidGlass> {
   }
 
   BorderRadius _shapeBorderRadius(LiquidGlassShape shape) {
-    // Phase 2 will add more shape types here.
     return switch (shape) {
+      RoundedRect(:final radius) => BorderRadius.circular(radius),
       Squircle(:final radius) => BorderRadius.circular(radius),
+      Circle() => BorderRadius.circular(9999),
+      Capsule() => BorderRadius.circular(9999),
+      Ellipse() => BorderRadius.circular(9999),
     };
   }
 

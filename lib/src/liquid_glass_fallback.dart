@@ -28,9 +28,12 @@ class GlassFallbackPainter extends CustomPainter {
   final FragmentShader? shader;
 
   double _shapeRadius(LiquidGlassShape s) {
-    // Phase 2 will add more shape types here.
     return switch (s) {
+      RoundedRect(:final radius) => radius,
       Squircle(:final radius) => radius,
+      Circle() => 0.0,
+      Capsule() => 0.0,
+      Ellipse() => 0.0,
     };
   }
 
