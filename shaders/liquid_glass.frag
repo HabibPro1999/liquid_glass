@@ -3,7 +3,7 @@
 precision mediump float;
 
 // ---------------------------------------------------------------------------
-// Uniforms — float indices [0..24], sampler index [0]
+// Uniforms — float indices [0..25], sampler index [0]
 // All floats must be set via shader.setFloat() in index order.
 // u_backdrop is provided automatically by ImageFilter.shader.
 // ---------------------------------------------------------------------------
@@ -33,6 +33,7 @@ uniform float u_tint_a;              // 21: tint alpha (0 = no tint)
 uniform float u_shape_type;          // 22: SDF shape selector (0-4)
 uniform float u_shape_radius;        // 23: shape corner radius
 uniform float u_variant;             // 24: 0=regular, 1=clear, 2=identity
+uniform float u_merge_distance;      // 25: merge softness in pixels (from group spacing)
 uniform sampler2D u_backdrop;        // sampler 0: backdrop texture
 
 out vec4 fragColor;
@@ -154,8 +155,15 @@ void main() {
     // --- SDF evaluation ---
     float d = evalSDF(localP, halfSize, u_shape_radius);
 
-    // Anti-aliased mask: 1 inside, 0 outside, smooth over 2px at boundary.
-    float mask = 1.0 - smoothstep(-1.0, 1.0, d);
+    // Anti-aliased mask: 1 inside, 0 outside.
+    // When merge_distance > 0, extend the mask softness zone outward.
+    // This makes edges softer, causing adjacent elements to visually blend
+    // when their soft zones overlap.
+    float maskWidth = 1.5; // default anti-alias width
+    if (u_merge_distance > 0.0) {
+        maskWidth = max(maskWidth, u_merge_distance);
+    }
+    float mask = 1.0 - smoothstep(-maskWidth, maskWidth, d);
 
     // Early exit for fully transparent fragments.
     if (mask < 0.001) {

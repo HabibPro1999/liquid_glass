@@ -1,4 +1,5 @@
 import 'dart:io' show Platform;
+import 'dart:math' show min;
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
@@ -39,6 +40,7 @@ class _Uniforms {
   static const int shapeType = 22;
   static const int shapeRadius = 23;
   static const int variant = 24;
+  static const int mergeDistance = 25;
 }
 
 // Shape type values matching the evalSDF switch in liquid_glass.frag.
@@ -242,7 +244,7 @@ class _LiquidGlassState extends State<LiquidGlass> {
   }
 
   void _setUniforms(FragmentShader shader, double width, double height,
-      LiquidGlassSettings s) {
+      LiquidGlassSettings s, double mergeDistanceValue) {
     final tint = s.tint;
 
     shader.setFloat(_Uniforms.width, width);
@@ -276,6 +278,9 @@ class _LiquidGlassState extends State<LiquidGlass> {
 
     // Variant.
     shader.setFloat(_Uniforms.variant, _variantValue(s.variant));
+
+    // Merge distance from group scope (0.0 if no group or no spacing).
+    shader.setFloat(_Uniforms.mergeDistance, mergeDistanceValue);
   }
 
   double _shapeTypeValue(LiquidGlassShape shape) {
@@ -320,13 +325,18 @@ class _LiquidGlassState extends State<LiquidGlass> {
   }
 
   /// Builds the Tier 2 fallback: BackdropFilter blur + additive chrome overlay.
+  ///
+  /// Half-sigma blur at full resolution approximates full-sigma at half
+  /// resolution, avoiding artifacts above sigma 25 (docs/05 §5.2).
   Widget _buildTier2(BorderRadius borderRadius, LiquidGlassSettings settings) {
+    // Cap sigma at 20: above this threshold the blur degrades in quality.
+    final clampedSigma = min(settings.blurSigma, 20.0);
     return ClipRRect(
       borderRadius: borderRadius,
       child: BackdropFilter(
         filter: ImageFilter.blur(
-          sigmaX: settings.blurSigma,
-          sigmaY: settings.blurSigma,
+          sigmaX: clampedSigma,
+          sigmaY: clampedSigma,
         ),
         child: Stack(
           fit: StackFit.passthrough,
@@ -364,8 +374,7 @@ class _LiquidGlassState extends State<LiquidGlass> {
     // Step 3: Apply accessibility overrides to get effective settings.
     final effectiveSettings = _effectiveSettings(context);
 
-    // Step 3b: Read group merge distance (used in TASK-005-02 for shader uniform).
-    // ignore: unused_local_variable
+    // Step 3b: Read group merge distance for shader uniform (u_merge_distance).
     final mergeDistance = LiquidGlassGroup.spacingOf(context) ?? 0.0;
 
     // Step 4: Accessibility may have forced identity variant (e.g. reduceTransparency proxy).
@@ -398,16 +407,19 @@ class _LiquidGlassState extends State<LiquidGlass> {
               ? MediaQuery.sizeOf(context).height
               : constraints.maxHeight;
 
-          _setUniforms(_shader!, width, height, effectiveSettings);
+          _setUniforms(_shader!, width, height, effectiveSettings, mergeDistance);
 
           ImageFilter filter;
           try {
             filter = ImageFilter.shader(_shader!);
           } on UnsupportedError {
             _supportsShader = false;
+            // Half-sigma blur at full resolution approximates full-sigma at
+            // half resolution, avoiding artifacts above sigma 25 (docs/05 §5.2).
+            final clampedSigma = min(effectiveSettings.blurSigma, 20.0);
             filter = ImageFilter.blur(
-              sigmaX: effectiveSettings.blurSigma,
-              sigmaY: effectiveSettings.blurSigma,
+              sigmaX: clampedSigma,
+              sigmaY: clampedSigma,
             );
           }
 
