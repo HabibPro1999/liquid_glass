@@ -9,3 +9,4 @@ export 'src/liquid_glass_widget.dart';
 export 'src/liquid_glass_group.dart';
 export 'src/liquid_glass_button.dart';
 export 'src/device_capabilities.dart';
+export 'src/tier_resolver.dart';
