@@ -328,6 +328,105 @@ class _DemoScreenState extends State<DemoScreen> {
                     ),
                   ),
                   const SizedBox(height: 32),
+
+                  // ── Deep Rendering ───────────────────────────────────────
+                  const _SectionHeader(title: 'Deep Rendering'),
+                  const SizedBox(height: 8),
+                  LiquidGlass(
+                    settings: const LiquidGlassSettings(
+                      enableGyroscope: true,
+                      gyroscopeSensitivity: 1.5,
+                    ),
+                    child: const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          Text(
+                            'Tilt your phone',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Gyroscope parallax',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: LiquidGlass(
+                          settings: const LiquidGlassSettings(
+                            enableFluid: true,
+                            fluidStrength: 0.5,
+                            isInteractive: true,
+                          ),
+                          child: const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Column(
+                              children: [
+                                Text(
+                                  'Touch and drag',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Fluid distortion',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: LiquidGlass(
+                          settings: const LiquidGlassSettings(
+                            isInteractive: false,
+                          ),
+                          child: const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Column(
+                              children: [
+                                Text(
+                                  'Static',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'No fluid',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
                 ],
               ),
             ),
