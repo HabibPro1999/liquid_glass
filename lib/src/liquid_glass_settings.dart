@@ -32,7 +32,8 @@ class LiquidGlassSettings {
         lightBandStrength = 0.4,
         grainIntensity = 0.0,
         isInteractive = false,
-        zFlatness = 3.0;
+        zFlatness = 3.0,
+        shimmerPhase = -1.0;
 
   const LiquidGlassSettings({
     this.variant = LiquidGlassVariant.regular,
@@ -55,6 +56,7 @@ class LiquidGlassSettings {
     this.grainIntensity = 0.04,
     this.isInteractive = false,
     this.zFlatness = 2.0,
+    this.shimmerPhase = -1.0,
   });
 
   /// The visual variant of the glass effect.
@@ -168,6 +170,12 @@ class LiquidGlassSettings {
   /// GLSL uniform: [u_z_flatness]. Valid range: 0.5-4.0.
   final double zFlatness;
 
+  /// Shimmer sweep phase for the shimmer animation.
+  ///
+  /// GLSL uniform: [u_shimmer_phase]. Range: 0.0–1.0 during animation.
+  /// -1.0 means shimmer is off (no sweep rendered).
+  final double shimmerPhase;
+
   /// Returns a copy of this settings object with the specified fields replaced.
   LiquidGlassSettings copyWith({
     LiquidGlassVariant? variant,
@@ -191,6 +199,7 @@ class LiquidGlassSettings {
     double? grainIntensity,
     bool? isInteractive,
     double? zFlatness,
+    double? shimmerPhase,
   }) {
     return LiquidGlassSettings(
       variant: variant ?? this.variant,
@@ -215,6 +224,7 @@ class LiquidGlassSettings {
       grainIntensity: grainIntensity ?? this.grainIntensity,
       isInteractive: isInteractive ?? this.isInteractive,
       zFlatness: zFlatness ?? this.zFlatness,
+      shimmerPhase: shimmerPhase ?? this.shimmerPhase,
     );
   }
 
@@ -254,6 +264,7 @@ class LiquidGlassSettings {
       grainIntensity: _lerpDouble(a.grainIntensity, b.grainIntensity, t),
       isInteractive: t < 0.5 ? a.isInteractive : b.isInteractive,
       zFlatness: _lerpDouble(a.zFlatness, b.zFlatness, t),
+      shimmerPhase: _lerpDouble(a.shimmerPhase, b.shimmerPhase, t),
     );
   }
 
@@ -283,11 +294,12 @@ class LiquidGlassSettings {
         lightBandStrength == other.lightBandStrength &&
         grainIntensity == other.grainIntensity &&
         isInteractive == other.isInteractive &&
-        zFlatness == other.zFlatness;
+        zFlatness == other.zFlatness &&
+        shimmerPhase == other.shimmerPhase;
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
         variant,
         tint,
         blurSigma,
@@ -308,7 +320,8 @@ class LiquidGlassSettings {
         grainIntensity,
         isInteractive,
         zFlatness,
-      );
+        shimmerPhase,
+      ]);
 
   @override
   String toString() => 'LiquidGlassSettings('
@@ -331,6 +344,7 @@ class LiquidGlassSettings {
       'lightBandStrength: $lightBandStrength, '
       'grainIntensity: $grainIntensity, '
       'isInteractive: $isInteractive, '
-      'zFlatness: $zFlatness'
+      'zFlatness: $zFlatness, '
+      'shimmerPhase: $shimmerPhase'
       ')';
 }

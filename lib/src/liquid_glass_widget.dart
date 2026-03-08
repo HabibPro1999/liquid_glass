@@ -343,7 +343,7 @@ class _LiquidGlassState extends State<LiquidGlass>
     shader.setFloat(_Uniforms.touchX, _touchPosition.dx);
     shader.setFloat(_Uniforms.touchY, _touchPosition.dy);
     shader.setFloat(_Uniforms.touchIntensity, _touchController?.value ?? 0.0);
-    shader.setFloat(_Uniforms.shimmerPhase, -1.0);
+    shader.setFloat(_Uniforms.shimmerPhase, s.shimmerPhase);
   }
 
   double _shapeTypeValue(LiquidGlassShape shape) {

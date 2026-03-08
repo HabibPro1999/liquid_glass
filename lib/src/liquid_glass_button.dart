@@ -1,3 +1,4 @@
+import 'package:flutter/physics.dart';
 import 'package:flutter/widgets.dart';
 
 import 'liquid_glass_settings.dart';
@@ -55,22 +56,26 @@ class LiquidGlassButton extends StatefulWidget {
 }
 
 class _LiquidGlassButtonState extends State<LiquidGlassButton>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _controller;
-  late final Animation<double> _scaleAnimation;
+  late final AnimationController _shimmerController;
   bool _animationsDisabled = false;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 150),
+      duration: const Duration(milliseconds: 100),
       vsync: this,
-    );
-    _scaleAnimation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOut,
-    );
+    )..addListener(() {
+      if (mounted) setState(() {});
+    });
+    _shimmerController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    )..addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -82,15 +87,17 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton>
   @override
   void dispose() {
     _controller.dispose();
+    _shimmerController.dispose();
     super.dispose();
   }
 
   double get _scale {
-    return 1.0 - (_scaleAnimation.value * (1.0 - widget.pressedScale));
+    return 1.0 - (_controller.value * (1.0 - widget.pressedScale));
   }
 
   void _handleTapDown(TapDownDetails details) {
     if (_animationsDisabled) return;
+    _controller.duration = const Duration(milliseconds: 100);
     _controller.forward();
   }
 
@@ -99,13 +106,36 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton>
       widget.onPressed?.call();
       return;
     }
-    _controller.reverse();
+    final spring = const SpringDescription(
+      mass: 1.0,
+      stiffness: 500.0,
+      damping: 25.0,
+    );
+    final simulation = SpringSimulation(
+      spring,
+      _controller.value,
+      0.0,
+      -_controller.velocity,
+    );
+    _controller.animateWith(simulation);
+    _shimmerController.forward(from: 0.0);
     widget.onPressed?.call();
   }
 
   void _handleTapCancel() {
     if (_animationsDisabled) return;
-    _controller.reverse();
+    final spring = const SpringDescription(
+      mass: 1.0,
+      stiffness: 500.0,
+      damping: 25.0,
+    );
+    final simulation = SpringSimulation(
+      spring,
+      _controller.value,
+      0.0,
+      -_controller.velocity,
+    );
+    _controller.animateWith(simulation);
   }
 
   LiquidGlassSettings get _effectiveSettings {
@@ -145,18 +175,17 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton>
 
   @override
   Widget build(BuildContext context) {
+    final shimmerPhase =
+        _shimmerController.isAnimating ? _shimmerController.value : -1.0;
+
     return GestureDetector(
       onTapDown: widget.onPressed != null ? _handleTapDown : null,
       onTapUp: widget.onPressed != null ? _handleTapUp : null,
       onTapCancel: widget.onPressed != null ? _handleTapCancel : null,
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) => Transform.scale(
-          scale: _scale,
-          child: child,
-        ),
+      child: Transform.scale(
+        scale: _scale,
         child: LiquidGlass(
-          settings: _effectiveSettings,
+          settings: _effectiveSettings.copyWith(shimmerPhase: shimmerPhase),
           shape: widget.shape ?? LiquidGlassShape.capsule(),
           child: widget.child,
         ),
