@@ -35,7 +35,9 @@ class LiquidGlassSettings {
         zFlatness = 3.0,
         shimmerPhase = -1.0,
         enableGyroscope = false,
-        gyroscopeSensitivity = 1.0;
+        gyroscopeSensitivity = 1.0,
+        enableFluid = false,
+        fluidStrength = 0.0;
 
   const LiquidGlassSettings({
     this.variant = LiquidGlassVariant.regular,
@@ -61,6 +63,8 @@ class LiquidGlassSettings {
     this.shimmerPhase = -1.0,
     this.enableGyroscope = false,
     this.gyroscopeSensitivity = 1.0,
+    this.enableFluid = false,
+    this.fluidStrength = 0.0,
   });
 
   /// The visual variant of the glass effect.
@@ -192,6 +196,18 @@ class LiquidGlassSettings {
   /// Default 1.0.
   final double gyroscopeSensitivity;
 
+  /// Whether the fluid displacement simulation is active.
+  ///
+  /// When true, [fluidStrength] controls how much the displacement texture
+  /// warps the refracted UV. Default false.
+  final bool enableFluid;
+
+  /// Strength of the fluid displacement texture warping.
+  ///
+  /// GLSL uniform: [u_fluid_strength]. Valid range: 0.0–1.0.
+  /// Has no effect when [enableFluid] is false.
+  final double fluidStrength;
+
   /// Returns a copy of this settings object with the specified fields replaced.
   LiquidGlassSettings copyWith({
     LiquidGlassVariant? variant,
@@ -218,6 +234,8 @@ class LiquidGlassSettings {
     double? shimmerPhase,
     bool? enableGyroscope,
     double? gyroscopeSensitivity,
+    bool? enableFluid,
+    double? fluidStrength,
   }) {
     return LiquidGlassSettings(
       variant: variant ?? this.variant,
@@ -245,6 +263,8 @@ class LiquidGlassSettings {
       shimmerPhase: shimmerPhase ?? this.shimmerPhase,
       enableGyroscope: enableGyroscope ?? this.enableGyroscope,
       gyroscopeSensitivity: gyroscopeSensitivity ?? this.gyroscopeSensitivity,
+      enableFluid: enableFluid ?? this.enableFluid,
+      fluidStrength: fluidStrength ?? this.fluidStrength,
     );
   }
 
@@ -288,6 +308,8 @@ class LiquidGlassSettings {
       enableGyroscope: t < 0.5 ? a.enableGyroscope : b.enableGyroscope,
       gyroscopeSensitivity:
           _lerpDouble(a.gyroscopeSensitivity, b.gyroscopeSensitivity, t),
+      enableFluid: t < 0.5 ? a.enableFluid : b.enableFluid,
+      fluidStrength: _lerpDouble(a.fluidStrength, b.fluidStrength, t),
     );
   }
 
@@ -320,7 +342,9 @@ class LiquidGlassSettings {
         zFlatness == other.zFlatness &&
         shimmerPhase == other.shimmerPhase &&
         enableGyroscope == other.enableGyroscope &&
-        gyroscopeSensitivity == other.gyroscopeSensitivity;
+        gyroscopeSensitivity == other.gyroscopeSensitivity &&
+        enableFluid == other.enableFluid &&
+        fluidStrength == other.fluidStrength;
   }
 
   @override
@@ -348,6 +372,8 @@ class LiquidGlassSettings {
         shimmerPhase,
         enableGyroscope,
         gyroscopeSensitivity,
+        enableFluid,
+        fluidStrength,
       ]);
 
   @override
@@ -374,6 +400,8 @@ class LiquidGlassSettings {
       'zFlatness: $zFlatness, '
       'shimmerPhase: $shimmerPhase, '
       'enableGyroscope: $enableGyroscope, '
-      'gyroscopeSensitivity: $gyroscopeSensitivity'
+      'gyroscopeSensitivity: $gyroscopeSensitivity, '
+      'enableFluid: $enableFluid, '
+      'fluidStrength: $fluidStrength'
       ')';
 }

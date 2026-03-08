@@ -52,6 +52,9 @@ class _Uniforms {
   static const int touchY = 28;
   static const int touchIntensity = 29;
   static const int shimmerPhase = 30;
+  static const int fluidStrength = 31;
+  static const int velocityX = 32;
+  static const int velocityY = 33;
 }
 
 // Shape type values matching the evalSDF switch in liquid_glass.frag.
@@ -129,6 +132,7 @@ class _LiquidGlassState extends State<LiquidGlass>
   FragmentShader? _fallbackShader;
   AnimationController? _touchController;
   Offset _touchPosition = Offset.zero;
+  Offset _pointerVelocity = Offset.zero;
 
   // Static so Impeller capability detection only happens once across all
   // instances. null = not yet determined.
@@ -375,6 +379,9 @@ class _LiquidGlassState extends State<LiquidGlass>
     shader.setFloat(_Uniforms.touchY, _touchPosition.dy);
     shader.setFloat(_Uniforms.touchIntensity, _touchController?.value ?? 0.0);
     shader.setFloat(_Uniforms.shimmerPhase, s.shimmerPhase);
+    shader.setFloat(_Uniforms.fluidStrength, s.enableFluid ? s.fluidStrength : 0.0);
+    shader.setFloat(_Uniforms.velocityX, _pointerVelocity.dx);
+    shader.setFloat(_Uniforms.velocityY, _pointerVelocity.dy);
   }
 
   double _shapeTypeValue(LiquidGlassShape shape) {

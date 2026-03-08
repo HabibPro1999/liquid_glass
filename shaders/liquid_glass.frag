@@ -2,7 +2,7 @@
 #include <flutter/runtime_effect.glsl>
 
 // ---------------------------------------------------------------------------
-// Uniforms — float indices [0..30], sampler index [0]
+// Uniforms — float indices [0..33], sampler index [0..1]
 //
 // When used via ImageFilter.shader (BackdropFilter), the engine auto-sets:
 //   float indices 0, 1 → backdrop texture width/height
@@ -42,7 +42,11 @@ uniform float u_touch_x;            // 27: touch position X (0-1 normalized)
 uniform float u_touch_y;            // 28: touch position Y (0-1 normalized)
 uniform float u_touch_intensity;    // 29: touch glow intensity (0=off, 1=peak)
 uniform float u_shimmer_phase;      // 30: shimmer sweep phase (0-1, negative=off)
+uniform float u_fluid_strength;     // 31: displacement texture strength (0=off)
+uniform float u_velocity_x;         // 32: pointer velocity X (-1..1)
+uniform float u_velocity_y;         // 33: pointer velocity Y (-1..1)
 uniform sampler2D u_backdrop;        // sampler 0: backdrop texture
+uniform sampler2D u_displacement;    // sampler 1: fluid displacement texture (64x64 RGBA)
 
 out vec4 fragColor;
 
@@ -192,6 +196,20 @@ void main() {
     float refractionScale = (u_refractive_index - 1.0) * 0.15;
     vec2 refractOffset = refracted.xy * refractionScale * falloff / vec2(u_width, u_height);
     vec2 refractedUV   = clamp(uv + refractOffset, 0.0, 1.0);
+
+    // --- Fluid displacement (Layer 11) ---
+    if (u_fluid_strength > 0.001) {
+        vec2 dispSample = texture(u_displacement, uv).rg;
+        vec2 disp = (dispSample - 0.5) * 2.0 * u_fluid_strength * 0.03;
+        disp *= mask;  // clip to SDF boundary
+        refractedUV = clamp(refractedUV + disp, 0.0, 1.0);
+    }
+
+    // --- Velocity distortion ---
+    if (abs(u_velocity_x) > 0.001 || abs(u_velocity_y) > 0.001) {
+        vec2 velOffset = vec2(u_velocity_x, u_velocity_y) * 0.02 * falloff;
+        refractedUV = clamp(refractedUV + velOffset, 0.0, 1.0);
+    }
 
     // --- Chromatic aberration (per-channel refract() with BK7 dispersion) ---
     vec3 refR = refract(incident, N, 1.0 / 1.519);
