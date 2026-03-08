@@ -2,7 +2,7 @@
 #include <flutter/runtime_effect.glsl>
 
 // ---------------------------------------------------------------------------
-// Uniforms — float indices [0..26], sampler index [0]
+// Uniforms — float indices [0..30], sampler index [0]
 //
 // When used via ImageFilter.shader (BackdropFilter), the engine auto-sets:
 //   float indices 0, 1 → backdrop texture width/height
@@ -38,6 +38,10 @@ uniform float u_shape_radius;        // 23: shape corner radius
 uniform float u_variant;             // 24: 0=regular, 1=clear, 2=identity
 uniform float u_merge_distance;      // 25: merge softness in pixels (from group spacing)
 uniform float u_z_flatness;          // 26: glass surface curvature (0.5=curved, 2.0=balanced, 4.0=flat)
+uniform float u_touch_x;            // 27: touch position X (0-1 normalized)
+uniform float u_touch_y;            // 28: touch position Y (0-1 normalized)
+uniform float u_touch_intensity;    // 29: touch glow intensity (0=off, 1=peak)
+uniform float u_shimmer_phase;      // 30: shimmer sweep phase (0-1, negative=off)
 uniform sampler2D u_backdrop;        // sampler 0: backdrop texture
 
 out vec4 fragColor;
@@ -240,17 +244,43 @@ void main() {
 
     baseColor.rgb += vec3(totalSpec + fresnelRim);
 
-    // --- Light band (inner glow) ---
-    // Glow at distance u_lightband_offset from the SDF boundary, with width u_lightband_width.
-    float bandCenter = -(u_lightband_offset);
-    float halfBand   = u_lightband_width * 0.5;
-    float bandDist   = abs(d - bandCenter);
-    float band       = smoothstep(halfBand, 0.0, bandDist) * u_lightband_strength;
-    baseColor.rgb   += vec3(band);
+    // --- Directional glare streak (Layer 7) ---
+    vec2 streakDir = vec2(cos(u_light_angle), -sin(u_light_angle));
+    vec2 normLocalP = localP / halfSize;
+    float streakProj = dot(normLocalP, streakDir);
+    float streakPerp = dot(normLocalP, vec2(-streakDir.y, streakDir.x));
+    // Elongated Gaussian: narrow perpendicular (3:1 aspect), broad along direction
+    float streakLong = exp(-streakProj * streakProj * 0.5);
+    float streakNarrow = exp(-streakPerp * streakPerp * 4.5);
+    // Modulate by edge proximity: strongest near SDF boundary
+    float edgeProximity = smoothstep(-u_lightband_width, -u_lightband_offset, d);
+    float streak = streakLong * streakNarrow * edgeProximity * u_lightband_strength;
+    baseColor.rgb += vec3(streak);
 
     // --- Tint compositing ---
     if (u_tint_a > 0.0) {
         baseColor.rgb += vec3(u_tint_r, u_tint_g, u_tint_b) * u_tint_a * variantTintMul;
+    }
+
+    // --- Touch illumination (Layer 10) ---
+    if (u_touch_intensity > 0.001) {
+        vec2 touchPos = vec2(u_touch_x, u_touch_y) * vec2(u_width, u_height);
+        float touchDist = length(fragCoord - touchPos);
+        float glowRadius = min(u_width, u_height) * 0.6;
+        float glow = exp(-(touchDist * touchDist) / (glowRadius * glowRadius)) * u_touch_intensity * 0.4;
+        glow *= mask;  // clip to SDF
+        baseColor.rgb += vec3(glow);
+    }
+
+    // --- Shimmer sweep ---
+    if (u_shimmer_phase >= 0.0 && u_shimmer_phase <= 1.0) {
+        vec2 shimmerDir = vec2(cos(u_light_angle), -sin(u_light_angle));
+        float shimmerPos = mix(-0.6, 1.6, u_shimmer_phase);
+        vec2 normP = localP / halfSize;
+        float projectedPos = dot(normP, shimmerDir);
+        float shimmerBand = exp(-pow((projectedPos - shimmerPos) * 3.0, 2.0)) * 0.3;
+        shimmerBand *= mask;
+        baseColor.rgb += vec3(shimmerBand);
     }
 
     // --- Film grain ---
