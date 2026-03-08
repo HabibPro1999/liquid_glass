@@ -246,6 +246,87 @@ class _DemoScreenState extends State<DemoScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 28),
+
+                  // ── Interactive ──────────────────────────────────────────
+                  const _SectionHeader(title: 'Interactive'),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: LiquidGlass(
+                          settings: const LiquidGlassSettings(isInteractive: true),
+                          child: const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Column(
+                              children: [
+                                Text(
+                                  'Touch me',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Interactive',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: LiquidGlass(
+                          settings: const LiquidGlassSettings(isInteractive: false),
+                          child: const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Column(
+                              children: [
+                                Text(
+                                  'Static',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Non-interactive',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Tap the button — watch the spring bounce and shimmer:',
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  const SizedBox(height: 8),
+                  LiquidGlassButton(
+                    style: LiquidGlassButtonStyle.primary,
+                    onPressed: () {},
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                      child: Text(
+                        'Spring + Shimmer',
+                        style: TextStyle(color: Colors.white, fontSize: 16),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 32),
                 ],
               ),
