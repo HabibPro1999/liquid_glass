@@ -1,6 +1,9 @@
+import 'dart:async' show StreamSubscription;
 import 'dart:io' show Platform;
-import 'dart:math' show min;
+import 'dart:math' show atan2, min;
 import 'dart:ui';
+
+import 'package:sensors_plus/sensors_plus.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -136,6 +139,10 @@ class _LiquidGlassState extends State<LiquidGlass>
 
   bool _disposed = false;
 
+  StreamSubscription<AccelerometerEvent>? _accelSubscription;
+  double _gyroLightAngle = 0.0;
+  double _gyroZFlatness = 2.0;
+
   @override
   void initState() {
     super.initState();
@@ -149,6 +156,29 @@ class _LiquidGlassState extends State<LiquidGlass>
     )..addListener(() {
       if (mounted) setState(() {});
     });
+  }
+
+  void _startGyroscope(LiquidGlassSettings settings) {
+    _accelSubscription?.cancel();
+    try {
+      _accelSubscription = accelerometerEventStream(
+        samplingPeriod: SensorInterval.gameInterval,
+      ).listen((event) {
+        if (!mounted) return;
+        final rawAngle = atan2(event.x, event.y) * settings.gyroscopeSensitivity;
+        _gyroLightAngle = _gyroLightAngle * 0.85 + rawAngle * 0.15;
+        final rawZ = (event.z / 9.81).clamp(-1.0, 1.0);
+        _gyroZFlatness = _gyroZFlatness * 0.85 + (2.0 + rawZ * 1.5) * 0.15;
+        setState(() {});
+      });
+    } catch (_) {
+      // Platform doesn't support accelerometer — silently ignore
+    }
+  }
+
+  void _stopGyroscope() {
+    _accelSubscription?.cancel();
+    _accelSubscription = null;
   }
 
   void _loadShaders() {
@@ -242,6 +272,7 @@ class _LiquidGlassState extends State<LiquidGlass>
   @override
   void dispose() {
     _disposed = true;
+    _stopGyroscope();
     _touchController?.dispose();
     _shader?.dispose();
     _shader = null;
@@ -475,7 +506,7 @@ class _LiquidGlassState extends State<LiquidGlass>
     }
 
     // Step 3: Apply accessibility overrides to get effective settings.
-    final effectiveSettings = _effectiveSettings(context);
+    var effectiveSettings = _effectiveSettings(context);
 
     // Step 3b: Read group merge distance for shader uniform (u_merge_distance).
     final mergeDistance = LiquidGlassGroup.spacingOf(context) ?? 0.0;
@@ -488,7 +519,22 @@ class _LiquidGlassState extends State<LiquidGlass>
 
     // Step 4: Accessibility may have forced identity variant (e.g. reduceTransparency proxy).
     if (effectiveSettings.variant == LiquidGlassVariant.identity) {
+      _stopGyroscope();
       return widget.child;
+    }
+
+    // Step 4b: Apply gyroscope light overrides when enabled and motion is allowed.
+    final mq = MediaQuery.of(context);
+    if (effectiveSettings.enableGyroscope && !mq.disableAnimations) {
+      if (_accelSubscription == null) {
+        _startGyroscope(effectiveSettings);
+      }
+      effectiveSettings = effectiveSettings.copyWith(
+        lightAngle: _gyroLightAngle,
+        zFlatness: _gyroZFlatness,
+      );
+    } else {
+      _stopGyroscope();
     }
 
     // Step 5: Use effective settings for all rendering.

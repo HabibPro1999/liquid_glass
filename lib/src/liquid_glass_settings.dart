@@ -33,7 +33,9 @@ class LiquidGlassSettings {
         grainIntensity = 0.0,
         isInteractive = false,
         zFlatness = 3.0,
-        shimmerPhase = -1.0;
+        shimmerPhase = -1.0,
+        enableGyroscope = false,
+        gyroscopeSensitivity = 1.0;
 
   const LiquidGlassSettings({
     this.variant = LiquidGlassVariant.regular,
@@ -57,6 +59,8 @@ class LiquidGlassSettings {
     this.isInteractive = false,
     this.zFlatness = 2.0,
     this.shimmerPhase = -1.0,
+    this.enableGyroscope = false,
+    this.gyroscopeSensitivity = 1.0,
   });
 
   /// The visual variant of the glass effect.
@@ -176,6 +180,18 @@ class LiquidGlassSettings {
   /// -1.0 means shimmer is off (no sweep rendered).
   final double shimmerPhase;
 
+  /// Whether to use the accelerometer to drive light angle and zFlatness.
+  ///
+  /// When true, the device orientation modulates the virtual light source
+  /// position. Has no effect when reduceMotion is active. Default false.
+  final bool enableGyroscope;
+
+  /// Sensitivity multiplier for the gyroscope light angle effect.
+  ///
+  /// Valid range: 0.1–3.0. Higher values produce more pronounced movement.
+  /// Default 1.0.
+  final double gyroscopeSensitivity;
+
   /// Returns a copy of this settings object with the specified fields replaced.
   LiquidGlassSettings copyWith({
     LiquidGlassVariant? variant,
@@ -200,6 +216,8 @@ class LiquidGlassSettings {
     bool? isInteractive,
     double? zFlatness,
     double? shimmerPhase,
+    bool? enableGyroscope,
+    double? gyroscopeSensitivity,
   }) {
     return LiquidGlassSettings(
       variant: variant ?? this.variant,
@@ -225,6 +243,8 @@ class LiquidGlassSettings {
       isInteractive: isInteractive ?? this.isInteractive,
       zFlatness: zFlatness ?? this.zFlatness,
       shimmerPhase: shimmerPhase ?? this.shimmerPhase,
+      enableGyroscope: enableGyroscope ?? this.enableGyroscope,
+      gyroscopeSensitivity: gyroscopeSensitivity ?? this.gyroscopeSensitivity,
     );
   }
 
@@ -265,6 +285,9 @@ class LiquidGlassSettings {
       isInteractive: t < 0.5 ? a.isInteractive : b.isInteractive,
       zFlatness: _lerpDouble(a.zFlatness, b.zFlatness, t),
       shimmerPhase: _lerpDouble(a.shimmerPhase, b.shimmerPhase, t),
+      enableGyroscope: t < 0.5 ? a.enableGyroscope : b.enableGyroscope,
+      gyroscopeSensitivity:
+          _lerpDouble(a.gyroscopeSensitivity, b.gyroscopeSensitivity, t),
     );
   }
 
@@ -295,7 +318,9 @@ class LiquidGlassSettings {
         grainIntensity == other.grainIntensity &&
         isInteractive == other.isInteractive &&
         zFlatness == other.zFlatness &&
-        shimmerPhase == other.shimmerPhase;
+        shimmerPhase == other.shimmerPhase &&
+        enableGyroscope == other.enableGyroscope &&
+        gyroscopeSensitivity == other.gyroscopeSensitivity;
   }
 
   @override
@@ -321,6 +346,8 @@ class LiquidGlassSettings {
         isInteractive,
         zFlatness,
         shimmerPhase,
+        enableGyroscope,
+        gyroscopeSensitivity,
       ]);
 
   @override
@@ -345,6 +372,8 @@ class LiquidGlassSettings {
       'grainIntensity: $grainIntensity, '
       'isInteractive: $isInteractive, '
       'zFlatness: $zFlatness, '
-      'shimmerPhase: $shimmerPhase'
+      'shimmerPhase: $shimmerPhase, '
+      'enableGyroscope: $enableGyroscope, '
+      'gyroscopeSensitivity: $gyroscopeSensitivity'
       ')';
 }
