@@ -1,13 +1,16 @@
 import 'dart:async' show StreamSubscription;
 import 'dart:io' show Platform;
 import 'dart:math' show atan2, min;
-import 'dart:ui';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:sensors_plus/sensors_plus.dart';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/widgets.dart';
 
+import 'fluid_simulation.dart';
 import 'glass_theme.dart';
 import 'liquid_glass_fallback.dart';
 import 'liquid_glass_group.dart';
@@ -127,12 +130,20 @@ class LiquidGlass extends StatefulWidget {
 }
 
 class _LiquidGlassState extends State<LiquidGlass>
-    with SingleTickerProviderStateMixin {
-  FragmentShader? _shader;
-  FragmentShader? _fallbackShader;
+    with TickerProviderStateMixin {
+  ui.FragmentShader? _shader;
+  ui.FragmentShader? _fallbackShader;
   AnimationController? _touchController;
   Offset _touchPosition = Offset.zero;
   Offset _pointerVelocity = Offset.zero;
+
+  FluidSimulation? _fluidSim;
+  ui.Image? _displacementImage;
+  Offset _lastPointerPosition = Offset.zero;
+  DateTime _lastPointerTime = DateTime.now();
+  AnimationController? _velocityDecayController;
+
+  Ticker? _fluidTicker;
 
   // Static so Impeller capability detection only happens once across all
   // instances. null = not yet determined.
@@ -152,6 +163,11 @@ class _LiquidGlassState extends State<LiquidGlass>
     super.initState();
     _loadShaders();
     _initTouchController();
+    _initVelocityDecay();
+    if (widget.settings.enableFluid) {
+      _initFluidSim();
+      _startFluidTicker();
+    }
   }
 
   void _initTouchController() {
@@ -160,6 +176,60 @@ class _LiquidGlassState extends State<LiquidGlass>
     )..addListener(() {
       if (mounted) setState(() {});
     });
+  }
+
+  void _initVelocityDecay() {
+    _velocityDecayController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    )..addListener(() {
+      if (mounted) {
+        _pointerVelocity = Offset.lerp(_pointerVelocity, Offset.zero, _velocityDecayController!.value)!;
+        setState(() {});
+      }
+    });
+  }
+
+  void _initFluidSim() {
+    _fluidSim = FluidSimulation();
+  }
+
+  void _disposeFluidSim() {
+    _fluidSim = null;
+    _displacementImage?.dispose();
+    _displacementImage = null;
+  }
+
+  void _startFluidTicker() {
+    _fluidTicker?.stop();
+    _fluidTicker?.dispose();
+    _fluidTicker = createTicker((elapsed) {
+      _fluidSim?.step(1.0 / 60.0);
+      _updateDisplacementImage();
+    });
+    _fluidTicker!.start();
+  }
+
+  void _stopFluidTicker() {
+    _fluidTicker?.stop();
+    _fluidTicker?.dispose();
+    _fluidTicker = null;
+  }
+
+  void _updateDisplacementImage() {
+    if (_fluidSim == null) return;
+    final bytes = _fluidSim!.getDisplacementBytes();
+    ui.decodeImageFromPixels(
+      bytes,
+      _fluidSim!.gridSize,
+      _fluidSim!.gridSize,
+      ui.PixelFormat.rgba8888,
+      (image) {
+        _displacementImage?.dispose();
+        _displacementImage = image;
+        if (mounted) setState(() {});
+      },
+    );
   }
 
   void _startGyroscope(LiquidGlassSettings settings) {
@@ -192,7 +262,7 @@ class _LiquidGlassState extends State<LiquidGlass>
       return;
     }
 
-    FragmentProgram.fromAsset('packages/liquid_glass/shaders/liquid_glass.frag')
+    ui.FragmentProgram.fromAsset('packages/liquid_glass/shaders/liquid_glass.frag')
         .then((program) {
       if (_disposed) return;
       final shader = program.fragmentShader();
@@ -200,7 +270,7 @@ class _LiquidGlassState extends State<LiquidGlass>
       // ImageFilter.shader. Skia and web throw UnsupportedError.
       if (_supportsShader == null) {
         try {
-          ImageFilter.shader(shader);
+          ui.ImageFilter.shader(shader);
           _supportsShader = true;
         } on UnsupportedError {
           _supportsShader = false;
@@ -268,9 +338,18 @@ class _LiquidGlassState extends State<LiquidGlass>
   @override
   void didUpdateWidget(LiquidGlass oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // No need to reload the shader; just mark that uniforms need re-setting
-    // on the next build. The build method always re-sets all uniforms, so
-    // there is nothing explicit to do here.
+    final wasFluid = oldWidget.settings.enableFluid;
+    final isFluid = widget.settings.enableFluid;
+    if (wasFluid != isFluid) {
+      if (isFluid) {
+        _initFluidSim();
+        _startFluidTicker();
+      } else {
+        _stopFluidTicker();
+        _disposeFluidSim();
+        _pointerVelocity = Offset.zero;
+      }
+    }
   }
 
   @override
@@ -278,6 +357,9 @@ class _LiquidGlassState extends State<LiquidGlass>
     _disposed = true;
     _stopGyroscope();
     _touchController?.dispose();
+    _velocityDecayController?.dispose();
+    _stopFluidTicker();
+    _disposeFluidSim();
     _shader?.dispose();
     _shader = null;
     _fallbackShader?.dispose();
@@ -334,8 +416,8 @@ class _LiquidGlassState extends State<LiquidGlass>
     return settings;
   }
 
-  void _setUniforms(FragmentShader shader, LiquidGlassSettings s,
-      double mergeDistanceValue) {
+  void _setUniforms(ui.FragmentShader shader, LiquidGlassSettings s,
+      double mergeDistanceValue, bool fluidActive) {
     final tint = s.tint;
 
     // Indices 0, 1 (u_width, u_height) are auto-set by the engine via
@@ -380,8 +462,17 @@ class _LiquidGlassState extends State<LiquidGlass>
     shader.setFloat(_Uniforms.touchIntensity, _touchController?.value ?? 0.0);
     shader.setFloat(_Uniforms.shimmerPhase, s.shimmerPhase);
     shader.setFloat(_Uniforms.fluidStrength, s.enableFluid ? s.fluidStrength : 0.0);
-    shader.setFloat(_Uniforms.velocityX, _pointerVelocity.dx);
-    shader.setFloat(_Uniforms.velocityY, _pointerVelocity.dy);
+
+    // When fluid is active: velocity is injected into the fluid sim, so the
+    // direct velocity uniforms are zeroed out (fluid handles distortion).
+    // When fluid is inactive: velocity goes directly to uniforms.
+    if (fluidActive) {
+      shader.setFloat(_Uniforms.velocityX, 0.0);
+      shader.setFloat(_Uniforms.velocityY, 0.0);
+    } else {
+      shader.setFloat(_Uniforms.velocityX, _pointerVelocity.dx);
+      shader.setFloat(_Uniforms.velocityY, _pointerVelocity.dy);
+    }
   }
 
   double _shapeTypeValue(LiquidGlassShape shape) {
@@ -452,14 +543,62 @@ class _LiquidGlassState extends State<LiquidGlass>
         );
         _touchController?.duration = const Duration(milliseconds: 150);
         _touchController?.forward(from: 0.0);
+
+        // Fluid sim: inject force at touch point on pointer down
+        if (_fluidSim != null) {
+          final nx = event.localPosition.dx / elementSize.width;
+          final ny = event.localPosition.dy / elementSize.height;
+          _fluidSim!.injectForce(nx, ny, 0.0, 0.0, 0.1);
+        }
+
+        _lastPointerPosition = event.localPosition;
+        _lastPointerTime = DateTime.now();
+      },
+      onPointerMove: (event) {
+        final now = DateTime.now();
+        final dt = now.difference(_lastPointerTime).inMicroseconds / 1e6;
+        if (dt > 0) {
+          final delta = event.localPosition - _lastPointerPosition;
+          final rawVelocity = Offset(
+            delta.dx / dt / elementSize.width,
+            delta.dy / dt / elementSize.height,
+          );
+          // Low-pass filter with alpha=0.3
+          const alpha = 0.3;
+          final filtered = Offset(
+            _pointerVelocity.dx * (1 - alpha) + rawVelocity.dx * alpha,
+            _pointerVelocity.dy * (1 - alpha) + rawVelocity.dy * alpha,
+          );
+          // Normalize to unit range
+          final magnitude = filtered.distance;
+          final normalized = magnitude > 0
+              ? Offset(filtered.dx / magnitude, filtered.dy / magnitude)
+              : Offset.zero;
+
+          if (_fluidSim != null) {
+            // When fluid active: inject velocity as force into fluid sim
+            final nx = event.localPosition.dx / elementSize.width;
+            final ny = event.localPosition.dy / elementSize.height;
+            _fluidSim!.injectForce(nx, ny, normalized.dx, normalized.dy, 0.1);
+          } else {
+            // When fluid inactive: update _pointerVelocity for direct shader distortion
+            _pointerVelocity = normalized;
+            setState(() {});
+          }
+        }
+        _lastPointerPosition = event.localPosition;
+        _lastPointerTime = now;
       },
       onPointerUp: (_) {
         _touchController?.duration = const Duration(milliseconds: 300);
         _touchController?.reverse();
+        // Start velocity decay: animate to zero over 200ms
+        _velocityDecayController?.forward(from: 0.0);
       },
       onPointerCancel: (_) {
         _touchController?.duration = const Duration(milliseconds: 300);
         _touchController?.reverse();
+        _velocityDecayController?.forward(from: 0.0);
       },
       child: child,
     );
@@ -475,7 +614,7 @@ class _LiquidGlassState extends State<LiquidGlass>
     return ClipRRect(
       borderRadius: borderRadius,
       child: BackdropFilter(
-        filter: ImageFilter.blur(
+        filter: ui.ImageFilter.blur(
           sigmaX: clampedSigma,
           sigmaY: clampedSigma,
         ),
@@ -547,6 +686,7 @@ class _LiquidGlassState extends State<LiquidGlass>
     // Step 5: Use effective settings for all rendering.
     final borderRadius = _shapeBorderRadius(widget.shape);
     final isInteractive = effectiveSettings.isInteractive;
+    final fluidActive = effectiveSettings.enableFluid && _fluidSim != null;
 
     Widget glassWidget;
 
@@ -558,19 +698,24 @@ class _LiquidGlassState extends State<LiquidGlass>
       return widget.child;
     } else if (effectiveMode == LiquidGlassMode.tier1 || _supportsShader == true) {
       // Tier 1: Impeller path — full shader-based glass effect.
-      _setUniforms(_shader!, effectiveSettings, mergeDistance);
+      _setUniforms(_shader!, effectiveSettings, mergeDistance, fluidActive);
 
-      ImageFilter filter;
+      // Set displacement image sampler when fluid is active and image is ready.
+      if (effectiveSettings.enableFluid && _displacementImage != null) {
+        _shader!.setImageSampler(1, _displacementImage!);
+      }
+
+      ui.ImageFilter filter;
       try {
         final sigma = min(effectiveSettings.blurSigma, 25.0);
-        filter = ImageFilter.compose(
-          inner: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-          outer: ImageFilter.shader(_shader!),
+        filter = ui.ImageFilter.compose(
+          inner: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+          outer: ui.ImageFilter.shader(_shader!),
         );
       } on UnsupportedError {
         _supportsShader = false;
         final clampedSigma = min(effectiveSettings.blurSigma, 20.0);
-        filter = ImageFilter.blur(
+        filter = ui.ImageFilter.blur(
           sigmaX: clampedSigma,
           sigmaY: clampedSigma,
         );
