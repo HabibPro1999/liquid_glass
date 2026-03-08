@@ -1,3 +1,4 @@
+export 'src/fluid_simulation.dart';
 export 'src/liquid_glass_settings.dart';
 export 'src/liquid_glass_variant.dart';
 export 'src/liquid_glass_shape.dart';
