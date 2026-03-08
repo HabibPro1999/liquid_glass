@@ -45,6 +45,10 @@ class _Uniforms {
   static const int variant = 24;
   static const int mergeDistance = 25;
   static const int zFlatness = 26;
+  static const int touchX = 27;
+  static const int touchY = 28;
+  static const int touchIntensity = 29;
+  static const int shimmerPhase = 30;
 }
 
 // Shape type values matching the evalSDF switch in liquid_glass.frag.
@@ -116,9 +120,12 @@ class LiquidGlass extends StatefulWidget {
   State<LiquidGlass> createState() => _LiquidGlassState();
 }
 
-class _LiquidGlassState extends State<LiquidGlass> {
+class _LiquidGlassState extends State<LiquidGlass>
+    with SingleTickerProviderStateMixin {
   FragmentShader? _shader;
   FragmentShader? _fallbackShader;
+  AnimationController? _touchController;
+  Offset _touchPosition = Offset.zero;
 
   // Static so Impeller capability detection only happens once across all
   // instances. null = not yet determined.
@@ -133,6 +140,15 @@ class _LiquidGlassState extends State<LiquidGlass> {
   void initState() {
     super.initState();
     _loadShaders();
+    _initTouchController();
+  }
+
+  void _initTouchController() {
+    _touchController = AnimationController(
+      vsync: this,
+    )..addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   void _loadShaders() {
@@ -226,6 +242,7 @@ class _LiquidGlassState extends State<LiquidGlass> {
   @override
   void dispose() {
     _disposed = true;
+    _touchController?.dispose();
     _shader?.dispose();
     _shader = null;
     _fallbackShader?.dispose();
@@ -322,6 +339,11 @@ class _LiquidGlassState extends State<LiquidGlass> {
     shader.setFloat(_Uniforms.mergeDistance, mergeDistanceValue);
 
     shader.setFloat(_Uniforms.zFlatness, s.zFlatness);
+
+    shader.setFloat(_Uniforms.touchX, _touchPosition.dx);
+    shader.setFloat(_Uniforms.touchY, _touchPosition.dy);
+    shader.setFloat(_Uniforms.touchIntensity, _touchController?.value ?? 0.0);
+    shader.setFloat(_Uniforms.shimmerPhase, -1.0);
   }
 
   double _shapeTypeValue(LiquidGlassShape shape) {
@@ -379,6 +401,29 @@ class _LiquidGlassState extends State<LiquidGlass> {
         ],
       ),
       child: glassWidget,
+    );
+  }
+
+  Widget _wrapInteractive(Widget child, Size elementSize, bool isInteractive) {
+    if (!isInteractive) return child;
+    return Listener(
+      onPointerDown: (event) {
+        _touchPosition = Offset(
+          event.localPosition.dx / elementSize.width,
+          event.localPosition.dy / elementSize.height,
+        );
+        _touchController?.duration = const Duration(milliseconds: 150);
+        _touchController?.forward(from: 0.0);
+      },
+      onPointerUp: (_) {
+        _touchController?.duration = const Duration(milliseconds: 300);
+        _touchController?.reverse();
+      },
+      onPointerCancel: (_) {
+        _touchController?.duration = const Duration(milliseconds: 300);
+        _touchController?.reverse();
+      },
+      child: child,
     );
   }
 
@@ -448,19 +493,17 @@ class _LiquidGlassState extends State<LiquidGlass> {
 
     // Step 5: Use effective settings for all rendering.
     final borderRadius = _shapeBorderRadius(widget.shape);
+    final isInteractive = effectiveSettings.isInteractive;
+
+    Widget glassWidget;
 
     // mode: tier2 — always use the fallback, skip shader loading entirely.
     if (effectiveMode == LiquidGlassMode.tier2) {
-      return _buildWithShadow(_buildTier2(borderRadius, effectiveSettings), borderRadius);
-    }
-
-    // Shader not yet loaded — show child without glass until ready.
-    if (_shader == null) {
+      glassWidget = _buildWithShadow(_buildTier2(borderRadius, effectiveSettings), borderRadius);
+    } else if (_shader == null) {
+      // Shader not yet loaded — show child without glass until ready.
       return widget.child;
-    }
-
-    // mode: tier1 — force the shader path regardless of backend capability.
-    if (effectiveMode == LiquidGlassMode.tier1 || _supportsShader == true) {
+    } else if (effectiveMode == LiquidGlassMode.tier1 || _supportsShader == true) {
       // Tier 1: Impeller path — full shader-based glass effect.
       _setUniforms(_shader!, effectiveSettings, mergeDistance);
 
@@ -480,7 +523,7 @@ class _LiquidGlassState extends State<LiquidGlass> {
         );
       }
 
-      return _buildWithShadow(
+      glassWidget = _buildWithShadow(
         ClipRRect(
           borderRadius: borderRadius,
           child: BackdropFilter(
@@ -492,7 +535,14 @@ class _LiquidGlassState extends State<LiquidGlass> {
       );
     } else {
       // Tier 2: fallback blur + specular chrome for Skia / web / old Android.
-      return _buildWithShadow(_buildTier2(borderRadius, effectiveSettings), borderRadius);
+      glassWidget = _buildWithShadow(_buildTier2(borderRadius, effectiveSettings), borderRadius);
     }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = Size(constraints.maxWidth, constraints.maxHeight);
+        return _wrapInteractive(glassWidget, size, isInteractive);
+      },
+    );
   }
 }
