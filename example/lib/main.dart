@@ -1,6 +1,4 @@
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show StandardMessageCodec;
 import 'package:liquid_glass/liquid_glass.dart';
 
 import 'showcase_screen.dart';
@@ -363,150 +361,167 @@ class _DemoScreenState extends State<DemoScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  // ── Native vs Flutter ────────────────────────────────────
-                  if (defaultTargetPlatform == TargetPlatform.iOS) ...[
-                    const _SectionHeader(title: 'Native vs Flutter'),
-                    const SizedBox(height: 10),
-                    // Card comparison
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            children: [
-                              SizedBox(
-                                height: 90,
-                                child: UiKitView(
-                                  viewType: 'native-glass-view',
-                                  creationParams: const <String, dynamic>{
-                                    'label': 'Native',
-                                    'subtitle': 'UIGlassEffect',
-                                  },
-                                  creationParamsCodec:
-                                      const StandardMessageCodec(),
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              const Text(
-                                'Native iOS 26',
-                                style: TextStyle(
-                                  color: Colors.white54,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            children: [
-                              SizedBox(
-                                height: 90,
-                                child: LiquidGlass(
-                                  settings:
-                                      LiquidGlassSettings(variant: _variant),
-                                  child: const Center(
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Text(
-                                          'Flutter',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 15,
-                                          ),
+                  // ── Native vs Shader ─────────────────────────────────────
+                  const _SectionHeader(title: 'Native vs Shader'),
+                  const SizedBox(height: 10),
+                  // Card comparison
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          children: [
+                            SizedBox(
+                              height: 90,
+                              child: LiquidGlass(
+                                mode: LiquidGlassMode.native,
+                                settings: LiquidGlassSettings(variant: _variant),
+                                child: const Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        'Native',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
                                         ),
-                                        SizedBox(height: 4),
-                                        Text(
-                                          'LiquidGlass',
-                                          style: TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 12,
-                                          ),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        'Platform View',
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 12,
                                         ),
-                                      ],
-                                    ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 6),
-                              const Text(
-                                'Flutter Package',
-                                style: TextStyle(
-                                  color: Colors.white54,
-                                  fontSize: 11,
-                                ),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Native Mode',
+                              style: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 11,
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    // Button comparison
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            children: [
-                              SizedBox(
-                                height: 52,
-                                child: UiKitView(
-                                  viewType: 'native-glass-view',
-                                  creationParams: const <String, dynamic>{
-                                    'label': 'Tap Me',
-                                    'isButton': true,
-                                  },
-                                  creationParamsCodec:
-                                      const StandardMessageCodec(),
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              const Text(
-                                'Native Button',
-                                style: TextStyle(
-                                  color: Colors.white54,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            children: [
-                              LiquidGlassButton(
-                                style: LiquidGlassButtonStyle.primary,
-                                onPressed: () {},
-                                child: const Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 12,
-                                  ),
-                                  child: Text(
-                                    'Tap Me',
-                                    style: TextStyle(color: Colors.white),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            SizedBox(
+                              height: 90,
+                              child: LiquidGlass(
+                                mode: LiquidGlassMode.auto,
+                                settings: LiquidGlassSettings(variant: _variant),
+                                child: const Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        'Auto',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        'Best Available',
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 6),
-                              const Text(
-                                'Flutter Button',
-                                style: TextStyle(
-                                  color: Colors.white54,
-                                  fontSize: 11,
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Auto Mode',
+                              style: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Button comparison
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          children: [
+                            LiquidGlassButton(
+                              style: LiquidGlassButtonStyle.primary,
+                              onPressed: () {},
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 12,
+                                ),
+                                child: Text(
+                                  'Tap Me',
+                                  style: TextStyle(color: Colors.white),
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Native Mode',
+                              style: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 28),
-                  ],
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            LiquidGlassButton(
+                              style: LiquidGlassButtonStyle.secondary,
+                              onPressed: () {},
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 12,
+                                ),
+                                child: Text(
+                                  'Tap Me',
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Auto Mode',
+                              style: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 28),
 
                   // ── Deep Rendering ───────────────────────────────────────
                   const _SectionHeader(title: 'Deep Rendering'),
