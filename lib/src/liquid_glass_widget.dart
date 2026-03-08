@@ -1,15 +1,16 @@
 import 'dart:async' show StreamSubscription;
 import 'dart:io' show Platform;
 import 'dart:math' show atan2, min;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:sensors_plus/sensors_plus.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
+import 'package:flutter/services.dart' show StandardMessageCodec;
 import 'package:flutter/widgets.dart';
 
+import 'device_capabilities.dart';
 import 'fluid_simulation.dart';
 import 'glass_theme.dart';
 import 'liquid_glass_fallback.dart';
@@ -18,6 +19,7 @@ import 'liquid_glass_mode.dart';
 import 'liquid_glass_settings.dart';
 import 'liquid_glass_shape.dart';
 import 'liquid_glass_variant.dart';
+import 'tier_resolver.dart';
 
 // Uniform index constants matching the shader's float declaration order.
 // See shaders/liquid_glass.frag for the authoritative ordering.
@@ -145,12 +147,20 @@ class _LiquidGlassState extends State<LiquidGlass>
 
   Ticker? _fluidTicker;
 
+  RenderingTier? _resolvedTier;
+
   // Static so Impeller capability detection only happens once across all
   // instances. null = not yet determined.
   static bool? _supportsShader;
 
   // Static flag: emit the FlutterError.reportError fallback warning once only.
   static bool _fallbackErrorReported = false;
+
+  // Static 1x1 neutral displacement image used when fluid simulation is
+  // disabled. Prevents SIGSEGV on Mali/OpenGLES drivers that validate all
+  // declared samplers regardless of shader branch conditions.
+  static ui.Image? _dummyDisplacement;
+  static bool _dummyDisplacementLoading = false;
 
   bool _disposed = false;
 
@@ -161,13 +171,87 @@ class _LiquidGlassState extends State<LiquidGlass>
   @override
   void initState() {
     super.initState();
-    _loadShaders();
+    _ensureDummyDisplacement();
+    _initTierAndShaders();
     _initTouchController();
     _initVelocityDecay();
     if (widget.settings.enableFluid) {
       _initFluidSim();
       _startFluidTicker();
     }
+  }
+
+  /// Creates a static 1x1 RGBA image (128,128,0,255) representing zero
+  /// displacement. Shared across all LiquidGlass instances.
+  static void _ensureDummyDisplacement() {
+    if (_dummyDisplacement != null || _dummyDisplacementLoading) return;
+    _dummyDisplacementLoading = true;
+    // 1x1 pixel: R=128 G=128 (maps to 0.0 displacement), B=0, A=255
+    final bytes = Uint8List.fromList([128, 128, 0, 255]);
+    ui.decodeImageFromPixels(
+      bytes,
+      1,
+      1,
+      ui.PixelFormat.rgba8888,
+      (image) {
+        _dummyDisplacement = image;
+        _dummyDisplacementLoading = false;
+      },
+    );
+  }
+
+  void _initTierAndShaders() async {
+    // For explicit non-auto modes, resolve immediately without querying device
+    if (widget.mode != LiquidGlassMode.auto) {
+      _resolvedTier = TierResolver.resolve(DeviceInfo.unsupported(), widget.mode);
+    } else {
+      final info = await DeviceCapabilities.query();
+      if (_disposed) return;
+      _resolvedTier = TierResolver.resolve(info, widget.mode);
+    }
+
+    TierResolver.logTier(_resolvedTier!);
+
+    switch (_resolvedTier!) {
+      case RenderingTier.tier1Shader:
+        _loadShadersForTier1();
+        return; // setState will be called when shader loads
+      case RenderingTier.tier2Fallback:
+        _loadFallbackShader();
+        break;
+      case RenderingTier.tier0Native:
+      case RenderingTier.tier3PureFlutter:
+        // No shaders needed
+        break;
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _loadShadersForTier1() {
+    ui.FragmentProgram.fromAsset('packages/liquid_glass/shaders/liquid_glass.frag')
+        .then((program) {
+      if (_disposed) return;
+      final shader = program.fragmentShader();
+      if (_supportsShader == null) {
+        try {
+          ui.ImageFilter.shader(shader);
+          _supportsShader = true;
+        } on UnsupportedError {
+          _supportsShader = false;
+        }
+      }
+      setState(() { _shader = shader; });
+      if (_supportsShader == false) {
+        _reportFallbackOnce();
+        _loadFallbackShader();
+      }
+    }).catchError((error) {
+      if (kDebugMode) debugPrint('LiquidGlass: shader load failed: $error');
+      // Fall back to Tier 2 on shader load failure
+      _resolvedTier = RenderingTier.tier2Fallback;
+      _loadFallbackShader();
+      if (mounted) setState(() {});
+    });
   }
 
   void _initTouchController() {
@@ -255,45 +339,6 @@ class _LiquidGlassState extends State<LiquidGlass>
     _accelSubscription = null;
   }
 
-  void _loadShaders() {
-    // If mode forces tier2, skip the main shader and only load the fallback.
-    if (widget.mode == LiquidGlassMode.tier2) {
-      _loadFallbackShader();
-      return;
-    }
-
-    ui.FragmentProgram.fromAsset('packages/liquid_glass/shaders/liquid_glass.frag')
-        .then((program) {
-      if (_disposed) return;
-      final shader = program.fragmentShader();
-      // Detect Impeller capability once, by attempting to create an
-      // ImageFilter.shader. Skia and web throw UnsupportedError.
-      if (_supportsShader == null) {
-        try {
-          ui.ImageFilter.shader(shader);
-          _supportsShader = true;
-        } on UnsupportedError {
-          _supportsShader = false;
-        }
-      }
-      setState(() {
-        _shader = shader;
-      });
-
-      // If the backend does not support ImageFilter.shader, also load the
-      // lightweight fallback shader for chrome overlay.
-      if (_supportsShader == false) {
-        _reportFallbackOnce();
-        _loadFallbackShader();
-      }
-    }).catchError((error) {
-      // Shader loading failed — widget degrades to showing the child.
-      if (kDebugMode) {
-        debugPrint('LiquidGlass: shader load failed: $error');
-      }
-    });
-  }
-
   void _loadFallbackShader() {
     loadLightweightShader().then((shader) {
       if (_disposed) return;
@@ -308,8 +353,10 @@ class _LiquidGlassState extends State<LiquidGlass>
       _fallbackErrorReported = true;
       final details = FlutterErrorDetails(
         exception: UnsupportedError(
-          'LiquidGlass: ImageFilter.shader unavailable on this backend. '
-          'Using Tier 2 blur+specular fallback.',
+          'LiquidGlass: ImageFilter.shader unavailable or unsafe on this '
+          'backend (Android OpenGLES: flutter/flutter#164757). '
+          'Using Tier 2 blur+specular fallback. '
+          'Override with LiquidGlassMode.tier1 to force full shader.',
         ),
         library: 'liquid_glass',
         context: ErrorDescription('while initializing LiquidGlass rendering'),
@@ -405,12 +452,16 @@ class _LiquidGlassState extends State<LiquidGlass>
         settings.tint == null) {
       final brightness = MediaQuery.platformBrightnessOf(context);
       if (brightness == Brightness.dark) {
-        // Dark mode: apply subtle neutral warm tint lift
+        // Dark mode: visible cool blue-white ambient tint
         settings = settings.copyWith(
-          tint: const Color(0x0DFFFFFF), // very subtle white lift
+          tint: const Color(0x30B8C8F0),
+        );
+      } else {
+        // Light mode: subtle warm ambient tint
+        settings = settings.copyWith(
+          tint: const Color(0x20F0E8D8),
         );
       }
-      // Light mode: no automatic tint (transparent/clear is correct)
     }
 
     return settings;
@@ -604,13 +655,50 @@ class _LiquidGlassState extends State<LiquidGlass>
     );
   }
 
-  /// Builds the Tier 2 fallback: BackdropFilter blur + additive chrome overlay.
+  /// Builds the Tier 2 fallback: BackdropFilter blur + specular overlay.
   ///
-  /// Half-sigma blur at full resolution approximates full-sigma at half
-  /// resolution, avoiding artifacts above sigma 25 (docs/05 §5.2).
+  /// When the fallback shader is available, uses [GlassFallbackPainter] for
+  /// the specular chrome. When no shaders are loaded at all (Android OpenGLES),
+  /// uses a pure-Flutter gradient overlay to approximate specular highlights.
   Widget _buildTier2(BorderRadius borderRadius, LiquidGlassSettings settings) {
     // Cap sigma at 20: above this threshold the blur degrades in quality.
     final clampedSigma = min(settings.blurSigma, 20.0);
+
+    // Specular overlay: shader-based if available, pure-Flutter gradient if not.
+    final Widget specularOverlay;
+    if (_fallbackShader != null) {
+      specularOverlay = CustomPaint(
+        painter: GlassFallbackPainter(
+          settings: settings,
+          shape: widget.shape,
+          shader: _fallbackShader,
+        ),
+      );
+    } else {
+      // Pure-Flutter specular approximation for devices where shaders crash.
+      // Diagonal gradient simulates a directional light source.
+      specularOverlay = DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: borderRadius,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0x1AFFFFFF),
+              const Color(0x08FFFFFF),
+              const Color(0x00FFFFFF),
+              const Color(0x05FFFFFF),
+            ],
+            stops: const [0.0, 0.3, 0.6, 1.0],
+          ),
+          border: Border.all(
+            color: const Color(0x20FFFFFF),
+            width: 0.5,
+          ),
+        ),
+      );
+    }
+
     return ClipRRect(
       borderRadius: borderRadius,
       child: BackdropFilter(
@@ -623,18 +711,117 @@ class _LiquidGlassState extends State<LiquidGlass>
           children: [
             widget.child,
             Positioned.fill(
-              child: IgnorePointer(
-                child: CustomPaint(
-                  painter: GlassFallbackPainter(
-                    settings: settings,
-                    shape: widget.shape,
-                    shader: _fallbackShader,
-                  ),
-                ),
-              ),
+              child: IgnorePointer(child: specularOverlay),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTier1Shader(BorderRadius borderRadius, LiquidGlassSettings effectiveSettings, double mergeDistance, bool fluidActive) {
+    _setUniforms(_shader!, effectiveSettings, mergeDistance, fluidActive);
+
+    if (effectiveSettings.enableFluid && _displacementImage != null) {
+      _shader!.setImageSampler(1, _displacementImage!);
+    } else if (_dummyDisplacement != null) {
+      _shader!.setImageSampler(1, _dummyDisplacement!);
+    }
+
+    ui.ImageFilter filter;
+    try {
+      final sigma = min(effectiveSettings.blurSigma, 25.0);
+      filter = ui.ImageFilter.compose(
+        inner: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+        outer: ui.ImageFilter.shader(_shader!),
+      );
+    } on UnsupportedError {
+      _supportsShader = false;
+      final clampedSigma = min(effectiveSettings.blurSigma, 20.0);
+      filter = ui.ImageFilter.blur(sigmaX: clampedSigma, sigmaY: clampedSigma);
+    }
+
+    return ClipRRect(
+      borderRadius: borderRadius,
+      child: BackdropFilter(
+        filter: filter,
+        child: widget.child,
+      ),
+    );
+  }
+
+  Widget _buildTier0Native(BorderRadius borderRadius, LiquidGlassSettings settings) {
+    if (kIsWeb) return _buildTier2(borderRadius, settings);
+
+    final creationParams = _settingsToNativeParams(settings, widget.shape);
+
+    if (!kIsWeb && Platform.isAndroid) {
+      return ClipRRect(
+        borderRadius: borderRadius,
+        child: Stack(
+          fit: StackFit.passthrough,
+          children: [
+            AndroidView(
+              viewType: 'liquid-glass-native-view',
+              creationParams: creationParams,
+              creationParamsCodec: const StandardMessageCodec(),
+            ),
+            widget.child,
+          ],
+        ),
+      );
+    }
+
+    // Non-Android Tier 0 not yet implemented, fall back to Tier 2
+    return _buildTier2(borderRadius, settings);
+  }
+
+  Map<String, dynamic> _settingsToNativeParams(LiquidGlassSettings s, LiquidGlassShape shape) {
+    return {
+      'blurSigma': s.blurSigma,
+      'lightAngle': s.lightAngle,
+      'lightIntensity': s.lightIntensity,
+      'specularPower': s.specularPower,
+      'specularKickPower': s.specularKickPower,
+      'specularKickIntensity': s.specularKickIntensity,
+      'lightBandOffset': s.lightBandOffset,
+      'lightBandWidth': s.lightBandWidth,
+      'lightBandStrength': s.lightBandStrength,
+      'tintColor': s.tint?.toARGB32(),
+      'cornerRadius': _shapeRadius(shape),
+      'variant': s.variant == LiquidGlassVariant.clear ? 'clear' : 'regular',
+    };
+  }
+
+  Widget _buildTier3PureFlutter(BorderRadius borderRadius, LiquidGlassSettings settings) {
+    return ClipRRect(
+      borderRadius: borderRadius,
+      child: Stack(
+        fit: StackFit.passthrough,
+        children: [
+          widget.child,
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: borderRadius,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: const [
+                      Color(0x1AFFFFFF),
+                      Color(0x08FFFFFF),
+                      Color(0x00FFFFFF),
+                      Color(0x05FFFFFF),
+                    ],
+                    stops: const [0.0, 0.3, 0.6, 1.0],
+                  ),
+                  border: Border.all(color: const Color(0x20FFFFFF), width: 0.5),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -688,53 +875,32 @@ class _LiquidGlassState extends State<LiquidGlass>
     final isInteractive = effectiveSettings.isInteractive;
     final fluidActive = effectiveSettings.enableFluid && _fluidSim != null;
 
-    Widget glassWidget;
-
-    // mode: tier2 — always use the fallback, skip shader loading entirely.
-    if (effectiveMode == LiquidGlassMode.tier2) {
-      glassWidget = _buildWithShadow(_buildTier2(borderRadius, effectiveSettings), borderRadius);
-    } else if (_shader == null) {
-      // Shader not yet loaded — show child without glass until ready.
-      return widget.child;
-    } else if (effectiveMode == LiquidGlassMode.tier1 || _supportsShader == true) {
-      // Tier 1: Impeller path — full shader-based glass effect.
-      _setUniforms(_shader!, effectiveSettings, mergeDistance, fluidActive);
-
-      // Set displacement image sampler when fluid is active and image is ready.
-      if (effectiveSettings.enableFluid && _displacementImage != null) {
-        _shader!.setImageSampler(1, _displacementImage!);
-      }
-
-      ui.ImageFilter filter;
-      try {
-        final sigma = min(effectiveSettings.blurSigma, 25.0);
-        filter = ui.ImageFilter.compose(
-          inner: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-          outer: ui.ImageFilter.shader(_shader!),
-        );
-      } on UnsupportedError {
-        _supportsShader = false;
-        final clampedSigma = min(effectiveSettings.blurSigma, 20.0);
-        filter = ui.ImageFilter.blur(
-          sigmaX: clampedSigma,
-          sigmaY: clampedSigma,
-        );
-      }
-
-      glassWidget = _buildWithShadow(
-        ClipRRect(
-          borderRadius: borderRadius,
-          child: BackdropFilter(
-            filter: filter,
-            child: widget.child,
-          ),
-        ),
-        borderRadius,
-      );
-    } else {
-      // Tier 2: fallback blur + specular chrome for Skia / web / old Android.
-      glassWidget = _buildWithShadow(_buildTier2(borderRadius, effectiveSettings), borderRadius);
+    // Determine effective tier
+    var effectiveTier = _resolvedTier;
+    if (effectiveTier == null) {
+      return widget.child; // Tier not yet resolved
     }
+
+    // Theme mode override
+    if (effectiveMode == LiquidGlassMode.tier2) {
+      effectiveTier = RenderingTier.tier2Fallback;
+    } else if (effectiveMode == LiquidGlassMode.native) {
+      effectiveTier = RenderingTier.tier0Native;
+    }
+
+    Widget glassWidget;
+    switch (effectiveTier) {
+      case RenderingTier.tier0Native:
+        glassWidget = _buildTier0Native(borderRadius, effectiveSettings);
+      case RenderingTier.tier1Shader:
+        if (_shader == null) return widget.child; // shader still loading
+        glassWidget = _buildTier1Shader(borderRadius, effectiveSettings, mergeDistance, fluidActive);
+      case RenderingTier.tier2Fallback:
+        glassWidget = _buildTier2(borderRadius, effectiveSettings);
+      case RenderingTier.tier3PureFlutter:
+        glassWidget = _buildTier3PureFlutter(borderRadius, effectiveSettings);
+    }
+    glassWidget = _buildWithShadow(glassWidget, borderRadius);
 
     return LayoutBuilder(
       builder: (context, constraints) {
