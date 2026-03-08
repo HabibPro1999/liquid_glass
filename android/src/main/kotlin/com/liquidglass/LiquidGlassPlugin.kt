@@ -74,7 +74,7 @@ class LiquidGlassPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             }
             "updateGlassView" -> {
                 val viewId = call.argument<Int>("viewId")
-                val params = call.argument<Map<String, Any>>("params")
+                val params = call.argument<Map<String?, Any?>>("params")
                 if (viewId != null && params != null) {
                     activeViews[viewId]?.updateParams(params)
                     result.success(null)
