@@ -1,5 +1,9 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show StandardMessageCodec;
 import 'package:liquid_glass/liquid_glass.dart';
+
+import 'showcase_screen.dart';
 
 void main() => runApp(const LiquidGlassDemo());
 
@@ -53,14 +57,42 @@ class _DemoScreenState extends State<DemoScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Liquid Glass',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: -0.5,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Liquid Glass',
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      LiquidGlass(
+                        shape: const Squircle(radius: 12),
+                        showShadow: false,
+                        child: GestureDetector(
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ShowcaseScreen(),
+                            ),
+                          ),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            child: Icon(
+                              Icons.photo_library_outlined,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   const Text(
@@ -70,6 +102,8 @@ class _DemoScreenState extends State<DemoScreen> {
                       color: Colors.white70,
                     ),
                   ),
+                  const SizedBox(height: 4),
+                  const _TierDebugLabel(),
                   const SizedBox(height: 28),
 
                   // ── Variant switcher ─────────────────────────────────────
@@ -329,6 +363,151 @@ class _DemoScreenState extends State<DemoScreen> {
                   ),
                   const SizedBox(height: 32),
 
+                  // ── Native vs Flutter ────────────────────────────────────
+                  if (defaultTargetPlatform == TargetPlatform.iOS) ...[
+                    const _SectionHeader(title: 'Native vs Flutter'),
+                    const SizedBox(height: 10),
+                    // Card comparison
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            children: [
+                              SizedBox(
+                                height: 90,
+                                child: UiKitView(
+                                  viewType: 'native-glass-view',
+                                  creationParams: const <String, dynamic>{
+                                    'label': 'Native',
+                                    'subtitle': 'UIGlassEffect',
+                                  },
+                                  creationParamsCodec:
+                                      const StandardMessageCodec(),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              const Text(
+                                'Native iOS 26',
+                                style: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              SizedBox(
+                                height: 90,
+                                child: LiquidGlass(
+                                  settings:
+                                      LiquidGlassSettings(variant: _variant),
+                                  child: const Center(
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          'Flutter',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                        SizedBox(height: 4),
+                                        Text(
+                                          'LiquidGlass',
+                                          style: TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              const Text(
+                                'Flutter Package',
+                                style: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    // Button comparison
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            children: [
+                              SizedBox(
+                                height: 52,
+                                child: UiKitView(
+                                  viewType: 'native-glass-view',
+                                  creationParams: const <String, dynamic>{
+                                    'label': 'Tap Me',
+                                    'isButton': true,
+                                  },
+                                  creationParamsCodec:
+                                      const StandardMessageCodec(),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              const Text(
+                                'Native Button',
+                                style: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              LiquidGlassButton(
+                                style: LiquidGlassButtonStyle.primary,
+                                onPressed: () {},
+                                child: const Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 12,
+                                  ),
+                                  child: Text(
+                                    'Tap Me',
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              const Text(
+                                'Flutter Button',
+                                style: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 28),
+                  ],
+
                   // ── Deep Rendering ───────────────────────────────────────
                   const _SectionHeader(title: 'Deep Rendering'),
                   const SizedBox(height: 8),
@@ -432,6 +611,50 @@ class _DemoScreenState extends State<DemoScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Tier debug label ─────────────────────────────────────────────────────────
+
+class _TierDebugLabel extends StatefulWidget {
+  const _TierDebugLabel();
+
+  @override
+  State<_TierDebugLabel> createState() => _TierDebugLabelState();
+}
+
+class _TierDebugLabelState extends State<_TierDebugLabel> {
+  RenderingTier? _tier;
+
+  @override
+  void initState() {
+    super.initState();
+    DeviceCapabilities.query().then((info) {
+      if (!mounted) return;
+      setState(() {
+        _tier = TierResolver.resolve(info, LiquidGlassMode.auto);
+      });
+    });
+  }
+
+  static String _tierLabel(RenderingTier tier) {
+    return switch (tier) {
+      RenderingTier.tier0Native => 'Tier 0: Native Glass',
+      RenderingTier.tier1Shader => 'Tier 1: Impeller Shader',
+      RenderingTier.tier2Fallback => 'Tier 2: Blur + Specular',
+      RenderingTier.tier3PureFlutter => 'Tier 3: Pure Flutter',
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      _tier == null ? 'Detecting...' : _tierLabel(_tier!),
+      style: const TextStyle(
+        fontSize: 11,
+        color: Colors.white54,
       ),
     );
   }
