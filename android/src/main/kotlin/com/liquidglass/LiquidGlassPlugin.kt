@@ -5,24 +5,33 @@ import android.opengl.EGL14
 import android.opengl.EGLConfig
 import android.opengl.GLES20
 import io.flutter.embedding.engine.plugins.FlutterPlugin
+import io.flutter.embedding.engine.plugins.activity.ActivityAware
+import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 
-class LiquidGlassPlugin : FlutterPlugin, MethodCallHandler {
+class LiquidGlassPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
     private lateinit var channel: MethodChannel
     private lateinit var flutterPluginBinding: FlutterPlugin.FlutterPluginBinding
+    private var activity: android.app.Activity? = null
 
     companion object {
         private var cachedCapabilities: Map<String, Any>? = null
+        // NativeGlassPlatformView registers itself here on init and removes itself on dispose
+        internal val activeViews = mutableMapOf<Int, NativeGlassPlatformView>()
     }
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         flutterPluginBinding = binding
         channel = MethodChannel(binding.binaryMessenger, "liquid_glass")
         channel.setMethodCallHandler(this)
+        binding.platformViewRegistry.registerViewFactory(
+            "liquid-glass-native-view",
+            NativeGlassViewFactory { activity }
+        )
     }
 
     override fun onMethodCall(call: MethodCall, result: Result) {
@@ -62,6 +71,16 @@ class LiquidGlassPlugin : FlutterPlugin, MethodCallHandler {
 
                 cachedCapabilities = capabilities
                 result.success(capabilities)
+            }
+            "updateGlassView" -> {
+                val viewId = call.argument<Int>("viewId")
+                val params = call.argument<Map<String, Any>>("params")
+                if (viewId != null && params != null) {
+                    activeViews[viewId]?.updateParams(params)
+                    result.success(null)
+                } else {
+                    result.error("INVALID_ARGS", "viewId and params required", null)
+                }
             }
             else -> result.notImplemented()
         }
@@ -113,5 +132,21 @@ class LiquidGlassPlugin : FlutterPlugin, MethodCallHandler {
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channel.setMethodCallHandler(null)
+    }
+
+    override fun onAttachedToActivity(binding: ActivityPluginBinding) {
+        activity = binding.activity
+    }
+
+    override fun onDetachedFromActivityForConfigChanges() {
+        activity = null
+    }
+
+    override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
+        activity = binding.activity
+    }
+
+    override fun onDetachedFromActivity() {
+        activity = null
     }
 }

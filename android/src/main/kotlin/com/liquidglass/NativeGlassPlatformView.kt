@@ -48,6 +48,7 @@ class NativeGlassPlatformView(
     private var variant: String = "regular"
 
     init {
+        LiquidGlassPlugin.activeViews[viewId] = this
         parseParams(creationParams)
 
         val density = context.resources.displayMetrics.density
@@ -108,6 +109,7 @@ class NativeGlassPlatformView(
     override fun getView(): View = root
 
     override fun dispose() {
+        LiquidGlassPlugin.activeViews.remove(viewId)
     }
 
     inner class GlassOverlayView(context: Context) : View(context) {
