@@ -18,7 +18,8 @@ Add the dependency:
 
 ```yaml
 dependencies:
-  liquid_glass: ^1.0.0
+  liquid_glass:
+    git: https://github.com/HabibPro1999/liquid_glass.git
 ```
 
 Minimum Flutter SDK: **3.6.0**
